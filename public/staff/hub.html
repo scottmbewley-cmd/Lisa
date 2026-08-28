@@ -32,13 +32,42 @@
   .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
   .form-grid .field-group { margin-bottom: 0; }
   .low-stock { color: #B4453A; font-weight: 600; }
+
+  .monogram-badge {
+    width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 1.1rem; color: var(--gold); flex-shrink: 0;
+  }
+  .staff-brand { display: flex; align-items: center; gap: 12px; }
+  .staff-brand .brand-text .name { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; line-height: 1.1; }
+  .staff-brand .brand-text .tagline { font-family: var(--font-hand); font-size: 0.85rem; color: var(--gold); letter-spacing: 0.04em; }
+
+  .intro-note { background: var(--white); border: 1px solid rgba(61,69,75,0.1); padding: 16px 20px; margin-bottom: 16px; font-size: 0.9rem; }
+  .jump-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 20px; }
+  .jump-row .field-group { margin-bottom: 0; flex: 1; max-width: 260px; }
+
+  .category-heading { font-family: var(--font-hand); color: var(--gold); font-size: 1.3rem; margin: 28px 0 10px; }
+  .category-heading:first-of-type { margin-top: 0; }
+  .photo-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(61,69,75,0.12); }
+  .photo-placeholder {
+    width: 44px; height: 44px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 1.1rem; color: var(--white); background: var(--taupe);
+  }
+  .qty-warn { color: #B4453A; font-weight: 600; }
+  .qty-warn .warn-icon { font-size: 0.8em; }
 </style>
 </head>
 <body>
 
 <header class="site-header">
   <div class="container">
-    <a href="../index.html" class="monogram">EY <span class="tag">Staff</span></a>
+    <a href="../index.html" class="staff-brand">
+      <span class="monogram-badge">EY</span>
+      <span class="brand-text">
+        <span class="name">Exquisitely You</span><br>
+        <span class="tagline">Business Hub · Timeless</span>
+      </span>
+    </a>
     <nav class="main-nav">
       <a href="index.html">Dashboard</a>
       <a href="../index.html">View Public Site</a>
@@ -101,8 +130,12 @@
           <button type="submit" class="btn btn-primary" style="margin-top:18px;">Add Item</button>
         </form>
       </div>
-      <div style="margin-bottom:14px;"><input type="text" id="inv-search" placeholder="Search by name, SKU, material, or supplier…" style="width:100%; max-width:400px; padding:11px 14px; border:1px solid rgba(61,69,75,0.25);" /></div>
-      <div class="table-wrap"><table id="inventory-table"><thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Material</th><th>Qty</th><th>Sell £</th><th>Supplier</th></tr></thead><tbody></tbody></table></div>
+      <div class="intro-note">Stock is added automatically when you log a jewellery purchase on the <strong>Expenditure</strong> tab. This tab shows what you currently have — add items directly here too if needed, or search/jump to an existing one below.</div>
+      <div class="jump-row">
+        <div class="field-group"><label>Search inventory</label><input type="text" id="inv-search" placeholder="Type item name, SKU, material, or supplier…" style="width:100%; padding:11px 14px; border:1px solid rgba(61,69,75,0.25);" /></div>
+        <div class="field-group"><label>Jump to item (e.g. EY-0004 or 0004)</label><input type="text" id="inv-jump" placeholder="Enter item number…" style="width:100%; padding:11px 14px; border:1px solid rgba(61,69,75,0.25);" /></div>
+      </div>
+      <div id="inventory-groups"></div>
     </div>
 
     <!-- SALES -->
@@ -238,17 +271,64 @@ async function loadOverview() {
     : '<tr><td colspan="4" class="muted">Nothing low on stock right now.</td></tr>';
 }
 
+function escHtml(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+function renderInventoryGroups(data) {
+  const wrap = $('#inventory-groups');
+  if (!data.length) {
+    wrap.innerHTML = '<div class="table-wrap"><table><tbody><tr><td class="muted">No inventory yet — add your first item above, or log a Stock/Inventory expenditure.</td></tr></tbody></table></div>';
+    return;
+  }
+  const groups = {};
+  data.forEach(i => { const c = i.category || 'Other'; (groups[c] = groups[c] || []).push(i); });
+
+  wrap.innerHTML = Object.keys(groups).sort().map(cat => {
+    const rows = groups[cat].map(i => {
+      const warn = (i.reorder_at && i.quantity <= i.reorder_at);
+      const qtyCell = warn ? `<span class="qty-warn">${i.quantity} <span class="warn-icon">⚠</span></span>` : i.quantity;
+      const photoCell = i.photo_url
+        ? `<img class="photo-thumb" src="${escHtml(i.photo_url)}" alt="" />`
+        : `<div class="photo-placeholder">${escHtml((i.name||'?').charAt(0).toUpperCase())}</div>`;
+      return `<tr data-sku="${escHtml(i.sku)}">
+        <td>${photoCell}</td>
+        <td><strong>${escHtml(i.name)}</strong></td>
+        <td>${escHtml(i.sku)}</td>
+        <td>${escHtml(i.material)||'—'}</td>
+        <td>${escHtml(i.stone_detail)||'—'}</td>
+        <td>${escHtml(i.durability)||'—'}</td>
+        <td>${qtyCell}</td>
+        <td>${i.cost_per_item != null && i.cost_per_item !== '' ? '£'+Number(i.cost_per_item).toFixed(2) : '—'}</td>
+        <td>${i.sell_price != null && i.sell_price !== '' ? '£'+Number(i.sell_price).toFixed(2) : '—'}</td>
+        <td>${escHtml(i.supplier)||'—'}</td>
+        <td>${escHtml(i.notes)||'—'}</td>
+      </tr>`;
+    }).join('');
+    return `<h3 class="category-heading">${escHtml(cat)} (${groups[cat].length})</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Photo</th><th>Item</th><th>SKU</th><th>Material</th><th>Stone/Detail</th><th>Durability</th><th>Qty</th><th>Cost</th><th>Price</th><th>Supplier</th><th>Notes</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  }).join('');
+}
+
 async function loadInventory(query = '') {
   const data = await api('/api/inventory' + (query ? '?q=' + encodeURIComponent(query) : ''));
   if (!data) return;
   inventoryCache = data;
-  $('#inventory-table tbody').innerHTML = data.map(i => `
-    <tr><td>${i.sku}</td><td>${i.name}</td><td>${i.category||''}</td><td>${i.material||''}</td><td>${i.quantity}</td><td>£${(i.sell_price||0).toFixed(2)}</td><td>${i.supplier||''}</td></tr>
-  `).join('') || '<tr><td colspan="7" class="muted">No inventory yet — add your first item above.</td></tr>';
+  renderInventoryGroups(data);
 
   const sel = $('#sale-item-select');
   sel.innerHTML = '<option value="">— choose —</option>' + data.map(i => `<option value="${i.sku}">${i.name} (${i.sku})</option>`).join('');
 }
+
+$('#inv-jump').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = e.target.value.trim().toUpperCase();
+  if (!raw) return;
+  const sku = raw.startsWith('EY-') ? raw : 'EY-' + raw.padStart(4, '0');
+  const row = document.querySelector(`tr[data-sku="${sku}"]`);
+  if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.style.outline = '2px solid var(--gold)'; setTimeout(() => row.style.outline = '', 1500); }
+});
 
 async function loadSales() {
   const data = await api('/api/sales');
