@@ -1,7 +1,7 @@
 # Exquisitely You — Website (working title: Lisa)
 
-Static front end + Cloudflare Pages Functions + D1 database. Built to replace the
-Supabase/Netlify prototype. No build step — plain HTML/CSS/JS.
+Static front end + a single Cloudflare Worker script + D1 database. Built to
+replace the Supabase/Netlify prototype. No build step — plain HTML/CSS/JS.
 
 ## Structure
 
@@ -9,25 +9,28 @@ Supabase/Netlify prototype. No build step — plain HTML/CSS/JS.
 - `staff/login.html` — staff sign-in (single shared password)
 - `staff/index.html` — staff dashboard (links to Business Hub + placeholder sections)
 - `staff/hub.html` — Business Hub: Inventory, Sales, Expenditure, Suppliers, Notes
-- `functions/api/*.js` — Cloudflare Pages Functions (the backend API)
-- `functions/_middleware.js` — protects `/staff/*` and `/api/*` behind login
+- `_worker.js` — single Worker script handling `/api/*` routes, staff login
+  gating, and serving everything else as static assets. Cloudflare's modern
+  Workers-with-static-assets pattern replaced the old Pages Functions folder
+  approach, so all backend logic lives in this one file.
 
 ## Database
 
 D1 database `lisa-ey-db` already created on the Customer Sites Cloudflare account,
 with five tables: `inventory`, `sales`, `expenditure`, `suppliers`, `notes`.
 
-## Two things to set up in the Cloudflare dashboard before this works live
+## Deploy
 
-1. **Create the Pages project** — Customer Sites → Workers & Pages → Create →
-   Pages → connect to GitHub → select the `Lisa` repo.
+Uploaded directly via Cloudflare dashboard → Workers & Pages → Create application
+→ Upload your static files (drag in this whole folder or its ZIP).
 
-2. **Bind the D1 database** — In the new Pages project → Settings → Functions →
-   D1 database bindings → Add binding → variable name `DB` → select `lisa-ey-db`.
+## Two things to set up in the Cloudflare dashboard after uploading
 
-3. **Set the staff password** — Settings → Environment variables → Add variable →
+1. **Bind the D1 database** — Worker → Settings → Bindings → Add → D1 database →
+   variable name `DB` → select `lisa-ey-db`.
+
+2. **Set the staff password** — Settings → Variables and Secrets → Add →
    name `STAFF_PASSWORD` → your chosen password. Until this is set, it falls back
    to `changeme-EY2026` — change this before sharing the login with Lisa.
 
-Once those three are done, every push to the `main` branch on GitHub deploys
-automatically — no further manual steps.
+After both, redeploy (or it applies on the next request depending on binding type).
