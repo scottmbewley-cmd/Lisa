@@ -96,14 +96,14 @@ async function handleInventory(request, env, url) {
   return json({ error: "Method not allowed" }, 405);
 }
 
-async function handleSales(request, env) {
+async function handleSales(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM sales ORDER BY sale_date DESC, created_at DESC`).all();
     return json(results);
   }
   if (request.method === "POST") {
     const b = await request.json();
-    await env.DB.prepare(
+    const insertRes = await env.DB.prepare(
       `INSERT INTO sales (sale_date, item_sku, item_name, category, quantity, sale_price, platform, received_via)
        VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
     ).bind(
@@ -116,12 +116,30 @@ async function handleSales(request, env) {
         `UPDATE inventory SET quantity = MAX(0, quantity - ?1), updated_at = CURRENT_TIMESTAMP WHERE sku = ?2`
       ).bind(b.quantity || 1, b.item_sku).run();
     }
+    return json({ success: true, id: insertRes.meta.last_row_id });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fields = ["sale_date","item_sku","item_name","category","quantity","sale_price","platform","received_via"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE sales SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM sales WHERE id = ?`).bind(id).run();
     return json({ success: true });
   }
   return json({ error: "Method not allowed" }, 405);
 }
 
-async function handleExpenditure(request, env) {
+async function handleExpenditure(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM expenditure ORDER BY exp_date DESC, created_at DESC`).all();
     return json(results);
@@ -133,18 +151,18 @@ async function handleExpenditure(request, env) {
     if (b.category === "Stock / Inventory" && b.stock_name) {
       const sku = await nextSku(env);
       const insertRes = await env.DB.prepare(
-        `INSERT INTO inventory (sku, name, category, material, stone_detail, durability, quantity, cost_per_item, sell_price, reorder_at, supplier)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+        `INSERT INTO inventory (sku, name, category, material, stone_detail, durability, quantity, cost_per_item, sell_price, reorder_at, supplier, photo_url)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`
       ).bind(
         sku, b.stock_name, b.stock_category || "", b.stock_material || "",
         b.stock_stone || "", b.stock_durability || "", b.stock_quantity || 0,
         b.amount && b.stock_quantity ? (b.amount / b.stock_quantity) : 0,
-        b.stock_sell_price || 0, b.stock_reorder_at || 0, b.stock_supplier || ""
+        b.stock_sell_price || 0, b.stock_reorder_at || 0, b.stock_supplier || "", b.stock_photo || ""
       ).run();
       linkedId = insertRes.meta.last_row_id;
     }
 
-    await env.DB.prepare(
+    const expInsert = await env.DB.prepare(
       `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_inventory_id)
        VALUES (?1,?2,?3,?4,?5,?6)`
     ).bind(
@@ -152,21 +170,57 @@ async function handleExpenditure(request, env) {
       b.category || "", b.paid_from || "", b.amount || 0, b.notes || "", linkedId
     ).run();
 
-    return json({ success: true, linkedInventoryId: linkedId });
+    return json({ success: true, id: expInsert.meta.last_row_id, linkedInventoryId: linkedId });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fields = ["exp_date","category","paid_from","amount","notes"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE expenditure SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM expenditure WHERE id = ?`).bind(id).run();
+    return json({ success: true });
   }
   return json({ error: "Method not allowed" }, 405);
 }
 
-async function handleSuppliers(request, env) {
+async function handleSuppliers(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM suppliers ORDER BY date_ordered DESC`).all();
     return json(results);
   }
   if (request.method === "POST") {
     const b = await request.json();
-    await env.DB.prepare(
-      `INSERT INTO suppliers (name, date_ordered, lead_time_days) VALUES (?1,?2,?3)`
-    ).bind(b.name || "", b.date_ordered || new Date().toISOString().slice(0, 10), b.lead_time_days || 0).run();
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO suppliers (name, date_ordered, lead_time_days, status) VALUES (?1,?2,?3,?4)`
+    ).bind(b.name || "", b.date_ordered || new Date().toISOString().slice(0, 10), b.lead_time_days || 0, b.status || "Ordered").run();
+    return json({ success: true, id: insertRes.meta.last_row_id });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fields = ["name","date_ordered","lead_time_days","status"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE suppliers SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM suppliers WHERE id = ?`).bind(id).run();
     return json({ success: true });
   }
   return json({ error: "Method not allowed" }, 405);
@@ -207,9 +261,9 @@ export default {
         return json({ error: "Unauthorized" }, 401);
       }
       if (path === "/api/inventory") return handleInventory(request, env, url);
-      if (path === "/api/sales") return handleSales(request, env);
-      if (path === "/api/expenditure") return handleExpenditure(request, env);
-      if (path === "/api/suppliers") return handleSuppliers(request, env);
+      if (path === "/api/sales") return handleSales(request, env, url);
+      if (path === "/api/expenditure") return handleExpenditure(request, env, url);
+      if (path === "/api/suppliers") return handleSuppliers(request, env, url);
       if (path === "/api/notes") return handleNotes(request, env);
       return json({ error: "Not found" }, 404);
     }
