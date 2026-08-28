@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Business Hub — Exquisitely You</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css" />
+<style>
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 30px 0; border-bottom: 1px solid rgba(61,69,75,0.12); }
+  .tab-btn {
+    background: none; border: none; cursor: pointer;
+    padding: 12px 18px; font-family: var(--font-body); font-size: 0.92rem;
+    color: var(--charcoal); opacity: 0.6; border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { opacity: 1; border-bottom-color: var(--gold); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 20px; margin-bottom: 10px; }
+  .stat-card { background: var(--white); border: 1px solid rgba(61,69,75,0.1); padding: 22px; }
+  .stat-card .num { font-family: var(--font-display); font-size: 2rem; color: var(--sage-deep); }
+  .stat-card .label { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.65; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: 0.9rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(61,69,75,0.08); }
+  th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
+  .table-wrap { overflow-x: auto; border: 1px solid rgba(61,69,75,0.08); }
+
+  .form-card { background: var(--white); border: 1px solid rgba(61,69,75,0.1); padding: 26px; margin-bottom: 30px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
+  .form-grid .field-group { margin-bottom: 0; }
+  .low-stock { color: #B4453A; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="../index.html" class="monogram">EY <span class="tag">Staff</span></a>
+    <nav class="main-nav">
+      <a href="index.html">Dashboard</a>
+      <a href="../index.html">View Public Site</a>
+    </nav>
+  </div>
+</header>
+
+<section class="section" style="padding-top:40px;">
+  <div class="container">
+    <span class="eyebrow">Business Hub</span>
+    <h1 style="font-size:clamp(1.8rem,3.5vw,2.6rem);">Overview &amp; Tools</h1>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="inventory">Inventory</button>
+      <button class="tab-btn" data-tab="sales">Sales</button>
+      <button class="tab-btn" data-tab="expenditure">Expenditure</button>
+      <button class="tab-btn" data-tab="suppliers">Suppliers</button>
+      <button class="tab-btn" data-tab="notes">Notes</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-panel active" id="panel-overview">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="num" id="stat-items">–</div><div class="label">Items in stock</div></div>
+        <div class="stat-card"><div class="num" id="stat-sales">–</div><div class="label">Sales logged</div></div>
+        <div class="stat-card"><div class="num" id="stat-revenue">–</div><div class="label">Revenue (total)</div></div>
+        <div class="stat-card"><div class="num" id="stat-spend">–</div><div class="label">Expenditure (total)</div></div>
+      </div>
+      <h3 style="margin-top:36px;">Low stock (at or below reorder point)</h3>
+      <div class="table-wrap"><table id="low-stock-table"><thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Reorder at</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- INVENTORY -->
+    <div class="tab-panel" id="panel-inventory">
+      <div class="form-card">
+        <h3>Add inventory item</h3>
+        <form id="inv-form">
+          <div class="form-grid">
+            <div class="field-group"><label>Item name</label><input type="text" name="name" required /></div>
+            <div class="field-group"><label>Category</label>
+              <select name="category">
+                <option>Earrings</option><option>Necklaces</option><option>Bracelets</option>
+                <option>Rings</option><option>Anklets</option><option>Sets</option><option>Other</option>
+              </select>
+            </div>
+            <div class="field-group"><label>Material</label><input type="text" name="material" /></div>
+            <div class="field-group"><label>Stone / Detail</label><input type="text" name="stone_detail" /></div>
+            <div class="field-group"><label>Durability</label>
+              <select name="durability">
+                <option>Water-resistant</option><option>Fade-resistant</option>
+                <option>Water &amp; fade-resistant</option><option>Not specified</option>
+              </select>
+            </div>
+            <div class="field-group"><label>Quantity</label><input type="number" name="quantity" value="0" /></div>
+            <div class="field-group"><label>Sell price (£)</label><input type="number" step="0.01" name="sell_price" /></div>
+            <div class="field-group"><label>Reorder at</label><input type="number" name="reorder_at" value="0" /></div>
+            <div class="field-group"><label>Supplier</label><input type="text" name="supplier" /></div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:18px;">Add Item</button>
+        </form>
+      </div>
+      <div style="margin-bottom:14px;"><input type="text" id="inv-search" placeholder="Search by name, SKU, material, or supplier…" style="width:100%; max-width:400px; padding:11px 14px; border:1px solid rgba(61,69,75,0.25);" /></div>
+      <div class="table-wrap"><table id="inventory-table"><thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Material</th><th>Qty</th><th>Sell £</th><th>Supplier</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- SALES -->
+    <div class="tab-panel" id="panel-sales">
+      <div class="form-card">
+        <h3>Log a sale</h3>
+        <form id="sale-form">
+          <div class="form-grid">
+            <div class="field-group"><label>Date</label><input type="date" name="sale_date" required /></div>
+            <div class="field-group"><label>Item (from inventory)</label><select name="item_sku" id="sale-item-select"><option value="">— choose —</option></select></div>
+            <div class="field-group"><label>Quantity</label><input type="number" name="quantity" value="1" min="1" /></div>
+            <div class="field-group"><label>Sale price (£)</label><input type="number" step="0.01" name="sale_price" /></div>
+            <div class="field-group"><label>Platform</label>
+              <select name="platform"><option>Whatnot</option><option>Instagram</option><option>Facebook</option><option>Website</option><option>Other</option></select>
+            </div>
+            <div class="field-group"><label>Received via</label>
+              <select name="received_via"><option>PayPal Business</option><option>Personal PayPal</option><option>Whatnot payout</option></select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:18px;">Log Sale</button>
+        </form>
+      </div>
+      <div class="table-wrap"><table id="sales-table"><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Price £</th><th>Platform</th><th>Received via</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- EXPENDITURE -->
+    <div class="tab-panel" id="panel-expenditure">
+      <div class="form-card">
+        <h3>Log expenditure</h3>
+        <form id="exp-form">
+          <div class="form-grid">
+            <div class="field-group"><label>Date</label><input type="date" name="exp_date" required /></div>
+            <div class="field-group"><label>Category</label>
+              <select name="category" id="exp-category">
+                <option>Stock / Inventory</option><option>Packaging &amp; Shipping</option><option>Platform Fees</option>
+                <option>Marketing &amp; Ads</option><option>Equipment</option><option>Software &amp; Subscriptions</option>
+                <option>Photography &amp; Props</option><option>Travel</option><option>Insurance</option><option>Other</option>
+              </select>
+            </div>
+            <div class="field-group"><label>Paid from</label>
+              <select name="paid_from"><option>Lloyds</option><option>Revolut</option><option>Personal PayPal</option><option>PayPal Business</option></select>
+            </div>
+            <div class="field-group"><label>Amount (£)</label><input type="number" step="0.01" name="amount" required /></div>
+            <div class="field-group"><label>Notes</label><input type="text" name="notes" /></div>
+          </div>
+          <div id="stock-fields" style="display:none; margin-top:20px; padding-top:20px; border-top:1px dashed rgba(61,69,75,0.2);">
+            <h4 style="margin-bottom:14px;">New stock item details</h4>
+            <div class="form-grid">
+              <div class="field-group"><label>Item name</label><input type="text" name="stock_name" /></div>
+              <div class="field-group"><label>Category</label>
+                <select name="stock_category"><option>Earrings</option><option>Necklaces</option><option>Bracelets</option><option>Rings</option><option>Anklets</option><option>Sets</option><option>Other</option></select>
+              </div>
+              <div class="field-group"><label>Material</label><input type="text" name="stock_material" /></div>
+              <div class="field-group"><label>Quantity</label><input type="number" name="stock_quantity" value="1" /></div>
+              <div class="field-group"><label>Sell price (£, per item)</label><input type="number" step="0.01" name="stock_sell_price" /></div>
+              <div class="field-group"><label>Reorder at</label><input type="number" name="stock_reorder_at" value="0" /></div>
+              <div class="field-group"><label>Supplier</label><input type="text" name="stock_supplier" /></div>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:18px;">Log Expenditure</button>
+        </form>
+      </div>
+      <div class="table-wrap"><table id="expenditure-table"><thead><tr><th>Date</th><th>Category</th><th>Paid from</th><th>Amount £</th><th>Notes</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- SUPPLIERS -->
+    <div class="tab-panel" id="panel-suppliers">
+      <div class="form-card">
+        <h3>Add supplier order</h3>
+        <form id="sup-form">
+          <div class="form-grid">
+            <div class="field-group"><label>Supplier</label><input type="text" name="name" required /></div>
+            <div class="field-group"><label>Date ordered</label><input type="date" name="date_ordered" required /></div>
+            <div class="field-group"><label>Lead time (days)</label><input type="number" name="lead_time_days" /></div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:18px;">Add Supplier</button>
+        </form>
+      </div>
+      <div class="table-wrap"><table id="suppliers-table"><thead><tr><th>Supplier</th><th>Date ordered</th><th>Lead time</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="tab-panel" id="panel-notes">
+      <div class="form-card">
+        <h3>Business notes</h3>
+        <textarea id="notes-area" rows="10" placeholder="Jot down anything — supplier reminders, ideas, things to follow up on…" style="width:100%; padding:14px; border:1px solid rgba(61,69,75,0.25); font-family:var(--font-body);"></textarea>
+        <button id="save-notes" class="btn btn-primary" style="margin-top:16px;">Save Notes</button>
+        <p class="muted" id="notes-saved" style="margin-top:10px; font-size:0.85rem;"></p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+// Tabs
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.tab-btn').forEach(b => b.classList.remove('active'));
+    $$('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('#panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+let inventoryCache = [];
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
+  if (res.status === 401) { window.location.href = 'login.html'; return null; }
+  return res.json();
+}
+
+async function loadOverview() {
+  const [inv, sales, exp] = await Promise.all([
+    api('/api/inventory'), api('/api/sales'), api('/api/expenditure')
+  ]);
+  if (!inv) return;
+  $('#stat-items').textContent = inv.reduce((s,i) => s + (i.quantity||0), 0);
+  $('#stat-sales').textContent = sales.length;
+  $('#stat-revenue').textContent = '£' + sales.reduce((s,r) => s + (r.sale_price||0)*(r.quantity||1), 0).toFixed(2);
+  $('#stat-spend').textContent = '£' + exp.reduce((s,r) => s + (r.amount||0), 0).toFixed(2);
+
+  const low = inv.filter(i => i.reorder_at && i.quantity <= i.reorder_at);
+  $('#low-stock-table tbody').innerHTML = low.length
+    ? low.map(i => `<tr><td>${i.name}</td><td>${i.sku}</td><td class="low-stock">${i.quantity}</td><td>${i.reorder_at}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="muted">Nothing low on stock right now.</td></tr>';
+}
+
+async function loadInventory(query = '') {
+  const data = await api('/api/inventory' + (query ? '?q=' + encodeURIComponent(query) : ''));
+  if (!data) return;
+  inventoryCache = data;
+  $('#inventory-table tbody').innerHTML = data.map(i => `
+    <tr><td>${i.sku}</td><td>${i.name}</td><td>${i.category||''}</td><td>${i.material||''}</td><td>${i.quantity}</td><td>£${(i.sell_price||0).toFixed(2)}</td><td>${i.supplier||''}</td></tr>
+  `).join('') || '<tr><td colspan="7" class="muted">No inventory yet — add your first item above.</td></tr>';
+
+  const sel = $('#sale-item-select');
+  sel.innerHTML = '<option value="">— choose —</option>' + data.map(i => `<option value="${i.sku}">${i.name} (${i.sku})</option>`).join('');
+}
+
+async function loadSales() {
+  const data = await api('/api/sales');
+  if (!data) return;
+  $('#sales-table tbody').innerHTML = data.map(r => `
+    <tr><td>${r.sale_date}</td><td>${r.item_name}</td><td>${r.quantity}</td><td>£${(r.sale_price||0).toFixed(2)}</td><td>${r.platform||''}</td><td>${r.received_via||''}</td></tr>
+  `).join('') || '<tr><td colspan="6" class="muted">No sales logged yet.</td></tr>';
+}
+
+async function loadExpenditure() {
+  const data = await api('/api/expenditure');
+  if (!data) return;
+  $('#expenditure-table tbody').innerHTML = data.map(r => `
+    <tr><td>${r.exp_date}</td><td>${r.category}</td><td>${r.paid_from||''}</td><td>£${(r.amount||0).toFixed(2)}</td><td>${r.notes||''}</td></tr>
+  `).join('') || '<tr><td colspan="5" class="muted">No expenditure logged yet.</td></tr>';
+}
+
+async function loadSuppliers() {
+  const data = await api('/api/suppliers');
+  if (!data) return;
+  $('#suppliers-table tbody').innerHTML = data.map(r => `
+    <tr><td>${r.name}</td><td>${r.date_ordered||''}</td><td>${r.lead_time_days||''} days</td></tr>
+  `).join('') || '<tr><td colspan="3" class="muted">No suppliers added yet.</td></tr>';
+}
+
+async function loadNotes() {
+  const data = await api('/api/notes');
+  if (!data) return;
+  $('#notes-area').value = data.content || '';
+}
+
+// Inventory form
+$('#inv-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await api('/api/inventory', { method: 'POST', body: JSON.stringify(Object.fromEntries(fd)) });
+  e.target.reset();
+  await loadInventory();
+  await loadOverview();
+});
+
+$('#inv-search').addEventListener('input', (e) => loadInventory(e.target.value));
+
+// Sales form
+$('#sale-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd);
+  const item = inventoryCache.find(i => i.sku === body.item_sku);
+  if (item) { body.item_name = item.name; body.category = item.category; }
+  body.quantity = Number(body.quantity);
+  body.sale_price = Number(body.sale_price);
+  await api('/api/sales', { method: 'POST', body: JSON.stringify(body) });
+  e.target.reset();
+  await Promise.all([loadSales(), loadInventory(), loadOverview()]);
+});
+
+// Expenditure form — show/hide stock fields
+$('#exp-category').addEventListener('change', (e) => {
+  $('#stock-fields').style.display = e.target.value === 'Stock / Inventory' ? 'block' : 'none';
+});
+
+$('#exp-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd);
+  body.amount = Number(body.amount);
+  if (body.stock_quantity) body.stock_quantity = Number(body.stock_quantity);
+  if (body.stock_sell_price) body.stock_sell_price = Number(body.stock_sell_price);
+  if (body.stock_reorder_at) body.stock_reorder_at = Number(body.stock_reorder_at);
+  await api('/api/expenditure', { method: 'POST', body: JSON.stringify(body) });
+  e.target.reset();
+  $('#stock-fields').style.display = 'none';
+  await Promise.all([loadExpenditure(), loadInventory(), loadOverview()]);
+});
+
+// Suppliers form
+$('#sup-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await api('/api/suppliers', { method: 'POST', body: JSON.stringify(Object.fromEntries(fd)) });
+  e.target.reset();
+  await loadSuppliers();
+});
+
+// Notes
+$('#save-notes').addEventListener('click', async () => {
+  await api('/api/notes', { method: 'POST', body: JSON.stringify({ content: $('#notes-area').value }) });
+  $('#notes-saved').textContent = 'Saved.';
+  setTimeout(() => $('#notes-saved').textContent = '', 2000);
+});
+
+// Initial load
+(async () => {
+  await loadInventory();
+  await Promise.all([loadOverview(), loadSales(), loadExpenditure(), loadSuppliers(), loadNotes()]);
+})();
+</script>
+</body>
+</html>

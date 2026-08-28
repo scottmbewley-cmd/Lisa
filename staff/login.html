@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Staff Login — Exquisitely You</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/style.css" />
+<style>
+  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .login-card {
+    background: var(--white);
+    border: 1px solid rgba(61,69,75,0.1);
+    padding: 48px 40px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+  }
+  .login-card .monogram { justify-content: center; margin-bottom: 8px; }
+  #login-error { color: #B4453A; font-size: 0.88rem; min-height: 20px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <a href="../index.html" class="monogram">EY <span class="tag">Timeless</span></a>
+  <p class="muted" style="margin-bottom:30px;">Staff area — Business Hub &amp; tools</p>
+
+  <form id="login-form" style="text-align:left;">
+    <div class="field-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" required autofocus />
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+    <p id="login-error"></p>
+  </form>
+
+  <a href="../index.html" class="muted" style="display:inline-block; margin-top:20px; font-size:0.88rem; text-decoration:underline;">&larr; Back to site</a>
+</div>
+
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = document.getElementById('password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (data.success) {
+      window.location.href = 'index.html';
+    } else {
+      errorEl.textContent = data.error || 'Incorrect password.';
+    }
+  } catch (err) {
+    errorEl.textContent = 'Something went wrong — try again.';
+  }
+});
+</script>
+</body>
+</html>
