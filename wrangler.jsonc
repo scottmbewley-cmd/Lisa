@@ -1,0 +1,16 @@
+{
+  "name": "lisa-website",
+  "main": "_worker.js",
+  "compatibility_date": "2026-08-28",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lisa-ey-db",
+      "database_id": "1cbcab9d-8aeb-40d4-ae00-ebb8d8eb5f65"
+    }
+  ]
+}
