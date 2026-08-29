@@ -144,19 +144,23 @@
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
-    <h3 class="staff-serif" style="margin-top:0;">Find an item in the database</h3>
-    <div class="search-row">
-      <div class="staff-field"><label>Category</label>
-        <select id="s-category">
-          <option value="">All categories</option>
-          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
-        </select>
+    <button type="button" id="search-toggle" class="section-toggle">
+      <span class="chevron">▸</span> Find an item in the database
+    </button>
+    <div id="search-content" class="collapsible-content">
+      <div class="search-row">
+        <div class="staff-field"><label>Category</label>
+          <select id="s-category">
+            <option value="">All categories</option>
+            <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+          </select>
+        </div>
+        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
+        <button class="staff-btn" id="search-btn">Search</button>
       </div>
-      <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
-      <button class="staff-btn" id="search-btn">Search</button>
+      <div id="search-status">Pick a category or type a search to see results.</div>
+      <div id="search-results"></div>
     </div>
-    <div id="search-status">Pick a category or type a search to see results.</div>
-    <div id="search-results"></div>
   </div>
 </main>
 
@@ -220,6 +224,7 @@ function wireToggle(btnId, contentId) {
 }
 wireToggle('lowstock-toggle', 'lowstock-content');
 wireToggle('report-toggle', 'report-content');
+wireToggle('search-toggle', 'search-content');
 
 function setPhotoPreview(url) {
   currentPhotoUrl = url || '';
