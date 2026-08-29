@@ -161,6 +161,32 @@ async function handleInvLowStock(request, env, url) {
   return json(results);
 }
 
+// Logs an automatic 'Stock' expenditure entry when Inventory quantity
+// genuinely increases (new item added, or an existing item restocked) —
+// real money leaving the business, so Lisa never has to re-type a cost
+// she already entered in Inventory. linked_inventory_id is what marks
+// this row as auto-generated: manual entries (the accounting page's
+// entry form) never set it, and can't pick category 'Stock' either, so
+// the two are always cleanly distinguishable in the ledger.
+//
+// Only called when qtyDelta > 0 (never on a decrease or an unchanged
+// quantity) and costPerItem > 0 (a zero-cost item has nothing real to
+// log — an amount of £0 would just be noise in the ledger).
+async function logStockExpenditure(env, { inventoryId, qtyDelta, costPerItem, name, sku }) {
+  const amount = qtyDelta * costPerItem;
+  await env.DB.prepare(
+    `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_inventory_id)
+     VALUES (?1,?2,?3,?4,?5,?6)`
+  ).bind(
+    new Date().toISOString().slice(0, 10),
+    "Stock",
+    "",
+    amount,
+    `Auto: ${qtyDelta} × ${name} (${sku}) @ £${costPerItem.toFixed(2)} each`,
+    inventoryId
+  ).run();
+}
+
 async function handleInvItems(request, env, url) {
   if (request.method === "POST") {
     const b = await request.json();
@@ -180,19 +206,37 @@ async function handleInvItems(request, env, url) {
 
     const sku = await nextSku(env);
     const nextPos = countRow.maxPos + 1;
-    await env.DB.prepare(
+    const quantity = Number(b.quantity) || 0;
+    const costPerItem = Number(b.cost_per_item) || 0;
+    const insertRes = await env.DB.prepare(
       `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`
     ).bind(
-      sku, b.name, b.category, b.quantity || 0, b.cost_per_item || 0, b.sell_price || 0,
+      sku, b.name, b.category, quantity, costPerItem, b.sell_price || 0,
       b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || "", nextPos
     ).run();
+
+    // A new item's starting quantity is an increase from 0 — real stock cost.
+    if (quantity > 0 && costPerItem > 0) {
+      await logStockExpenditure(env, { inventoryId: insertRes.meta.last_row_id, qtyDelta: quantity, costPerItem, name: b.name, sku });
+    }
+
     return json({ success: true, sku });
   }
   if (request.method === "PATCH") {
     const id = url.searchParams.get("id");
     if (!id) return json({ error: "id required" }, 400);
     const b = await request.json();
+
+    // Read the current row FIRST (whenever quantity is part of this edit) so
+    // the increase is measured against what's actually in the database right
+    // now, not anything the client claims — a plain re-save with an
+    // unchanged quantity, or a decrease, must never log a stock expenditure.
+    let current = null;
+    if (b.quantity !== undefined) {
+      current = await env.DB.prepare(`SELECT quantity, cost_per_item, name, sku FROM inventory WHERE id = ?1`).bind(id).first();
+    }
+
     const fieldMap = { name: "name", category: "category", quantity: "quantity", cost_per_item: "cost_per_item", sell_price: "sell_price", reorder_at: "reorder_at", supplier: "supplier", supplier_code: "supplier_code", photo_url: "photo_url", description: "notes" };
     const sets = []; const vals = [];
     Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(b[f]); } });
@@ -200,6 +244,24 @@ async function handleInvItems(request, env, url) {
     sets.push(`updated_at = CURRENT_TIMESTAMP`);
     vals.push(id);
     await env.DB.prepare(`UPDATE inventory SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+
+    if (current) {
+      const qtyDelta = (Number(b.quantity) || 0) - (Number(current.quantity) || 0);
+      // If cost_per_item is being changed in this same edit, that's what was
+      // just paid for the added units; otherwise fall back to the cost
+      // already on file. A pure cost correction (no quantity field at all)
+      // never reaches this block, since `current` is only read above when
+      // b.quantity is present.
+      const costPerItem = b.cost_per_item !== undefined ? (Number(b.cost_per_item) || 0) : (Number(current.cost_per_item) || 0);
+      if (qtyDelta > 0 && costPerItem > 0) {
+        await logStockExpenditure(env, {
+          inventoryId: id, qtyDelta, costPerItem,
+          name: b.name !== undefined ? b.name : current.name,
+          sku: current.sku,
+        });
+      }
+    }
+
     return json({ success: true });
   }
   if (request.method === "DELETE") {
