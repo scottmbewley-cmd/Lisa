@@ -375,6 +375,7 @@ async function renderShopPage(request, env) {
           <h3>${escapeHtml(p.name)}</h3>
           <p class="product-price">\u00a3${Number(p.sell_price || 0).toFixed(2)}</p>
           <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
+          <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.quantity || 0)}"${soldOut ? ' disabled' : ''}>${soldOut ? 'Sold Out' : 'Add to Cart'}</button>
         </div>
         <div class="product-desc">${escapeHtml(p.notes)}</div>
       </div>`;

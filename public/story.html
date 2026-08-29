@@ -13,6 +13,7 @@
 <header class="site-header">
   <div class="container">
     <a href="index.html" class="monogram"><img src="assets/images/evelle-logo.png" alt="Evelle" style="height:64px;width:auto;"></a>
+    <div class="header-right">
     <nav class="main-nav">
       <a href="index.html">Home</a>
       <a href="shop.html">Shop</a>
@@ -20,7 +21,12 @@
       <a href="care.html">Care</a>
       <a href="contact.html">Contact</a>
     </nav>
+    <button class="cart-icon-btn" id="cart-toggle" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg>
+      <span class="cart-badge" id="cart-count">0</span>
+    </button>
     <button class="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
   </div>
 </header>
 
@@ -72,5 +78,6 @@
 </footer>
 
 <script src="assets/js/main.js"></script>
+<script src="assets/js/cart.js"></script>
 </body>
 </html>
