@@ -237,7 +237,7 @@ function escapeHtml(s) {
 
 async function getActiveLibraries(env) {
   const { results } = await env.DB.prepare(`SELECT active_libraries FROM shop_config WHERE id = 1`).all();
-  const raw = (results[0] && results[0].active_libraries) || "A,B";
+  const raw = (results[0] && results[0].active_libraries) || "A,B,C,D,E";
   return raw.split(",").map(s => s.trim()).filter(Boolean);
 }
 
@@ -440,7 +440,7 @@ async function handleShopProducts(request, env, url) {
     const b = await request.json();
     if (!b.name || !b.price || !b.library) return json({ error: "name, price, and library are required" }, 400);
     const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(position),-1) as maxPos FROM shop_products WHERE library = ?1`).bind(b.library).first();
-    if (countRow.n >= 20) return json({ error: "Library " + b.library + " is full (20/20). Remove a piece before adding another." }, 400);
+    if (countRow.n >= 50) return json({ error: "Library " + b.library + " is full (50/50). Remove a piece before adding another." }, 400);
     const nextPos = countRow.maxPos + 1;
     const insertRes = await env.DB.prepare(
       `INSERT INTO shop_products (name, price, category, image_url, library, position) VALUES (?1,?2,?3,?4,?5,?6)`
@@ -488,7 +488,7 @@ async function handleImageUpload(request, env) {
 async function handleShopReorder(request, env) {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const b = await request.json();
-  if (!b.library || !["A","B","C"].includes(b.library) || !Array.isArray(b.order)) {
+  if (!b.library || !["A","B","C","D","E","F"].includes(b.library) || !Array.isArray(b.order)) {
     return json({ error: "library and order[] (product ids) are required" }, 400);
   }
   const stmts = b.order.map((id, idx) =>
@@ -506,8 +506,8 @@ async function handleShopConfig(request, env) {
   if (request.method === "POST") {
     const b = await request.json();
     const libs = Array.isArray(b.active_libraries) ? b.active_libraries : [];
-    const valid = libs.filter(l => ["A", "B", "C"].includes(l));
-    if (valid.length !== 2) return json({ error: "Exactly two libraries must be active" }, 400);
+    const valid = libs.filter(l => ["A", "B", "C", "D", "E", "F"].includes(l));
+    if (valid.length !== 5) return json({ error: "Exactly five libraries must be active" }, 400);
     await env.DB.prepare(`UPDATE shop_config SET active_libraries = ?1 WHERE id = 1`).bind(valid.join(",")).run();
     return json({ success: true, active_libraries: valid });
   }

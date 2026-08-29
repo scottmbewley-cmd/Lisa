@@ -103,15 +103,18 @@
 <main class="staff-main">
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Shop Library</h1>
-  <p class="staff-muted">Three libraries, twenty slots each. Two are live on the public Shop page at any time.</p>
+  <p class="staff-muted">Six libraries, fifty slots each. Five are live on the public Shop page at any time.</p>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
     <h3 class="staff-serif" style="margin-top:0;">Which libraries are live</h3>
     <p class="staff-muted" style="font-size:0.85rem;">This controls the public Shop page only — nothing to do with adding photos below.</p>
     <div class="lib-toggle" id="lib-toggle">
-      <div class="staff-lib-card" data-lib="A"><h4>Library A</h4><span id="count-A">0 / 20</span></div>
-      <div class="staff-lib-card" data-lib="B"><h4>Library B</h4><span id="count-B">0 / 20</span></div>
-      <div class="staff-lib-card" data-lib="C"><h4>Library C</h4><span id="count-C">0 / 20</span></div>
+      <div class="staff-lib-card" data-lib="A"><h4>Ring Library</h4><span id="count-A">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="B"><h4>Bracelet Library</h4><span id="count-B">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="C"><h4>Necklace Library</h4><span id="count-C">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="D"><h4>Earring Library</h4><span id="count-D">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="E"><h4>Anklet Library</h4><span id="count-E">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="F"><h4>To Be Listed</h4><span id="count-F">0 / 50</span></div>
     </div>
     <div id="lib-status-msg" style="font-size:0.85rem; margin:10px 0; min-height:20px;"></div>
     <button class="staff-btn" id="save-libs-btn">Save Changes</button>
@@ -119,22 +122,37 @@
 
   <h3 class="staff-serif" style="margin-top:0;">Manage stock in each library</h3>
   <div class="lib-tabs" id="lib-tabs">
-    <button class="lib-tab-btn active" data-lib="A">Library A</button>
-    <button class="lib-tab-btn" data-lib="B">Library B</button>
-    <button class="lib-tab-btn" data-lib="C">Library C</button>
+    <button class="lib-tab-btn active" data-lib="A">Ring Library</button>
+    <button class="lib-tab-btn" data-lib="B">Bracelet Library</button>
+    <button class="lib-tab-btn" data-lib="C">Necklace Library</button>
+    <button class="lib-tab-btn" data-lib="D">Earring Library</button>
+    <button class="lib-tab-btn" data-lib="E">Anklet Library</button>
+    <button class="lib-tab-btn" data-lib="F">To Be Listed</button>
   </div>
 
   <div class="lib-panel active" data-lib="A">
-    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-A">0 / 20</span></div>
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-A">0 / 50</span></div>
     <div class="slot-grid" id="grid-A"></div>
   </div>
   <div class="lib-panel" data-lib="B">
-    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-B">0 / 20</span></div>
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-B">0 / 50</span></div>
     <div class="slot-grid" id="grid-B"></div>
   </div>
   <div class="lib-panel" data-lib="C">
-    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-C">0 / 20</span></div>
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-C">0 / 50</span></div>
     <div class="slot-grid" id="grid-C"></div>
+  </div>
+  <div class="lib-panel" data-lib="D">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-D">0 / 50</span></div>
+    <div class="slot-grid" id="grid-D"></div>
+  </div>
+  <div class="lib-panel" data-lib="E">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-E">0 / 50</span></div>
+    <div class="slot-grid" id="grid-E"></div>
+  </div>
+  <div class="lib-panel" data-lib="F">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-F">0 / 50</span></div>
+    <div class="slot-grid" id="grid-F"></div>
   </div>
 
   <input type="file" id="f-image-file" accept="image/*" style="display:none;" />
@@ -150,7 +168,7 @@
 </main>
 <script>
 let allProducts = [];
-let activeLibraries = ["A","B"];
+let activeLibraries = ["A","B","C","D","E"];
 let currentTab = "A";
 let pendingLibrary = null;
 
@@ -167,22 +185,22 @@ async function loadAll() {
 }
 
 function renderToggle() {
-  ["A","B","C"].forEach(lib => {
+  ["A","B","C","D","E","F"].forEach(lib => {
     const count = allProducts.filter(p => p.library === lib).length;
-    document.getElementById('count-' + lib).textContent = count + ' / 20';
-    document.getElementById('cap-' + lib).textContent = count + ' / 20';
-    document.getElementById('cap-' + lib).classList.toggle('full', count >= 20);
+    document.getElementById('count-' + lib).textContent = count + ' / 50';
+    document.getElementById('cap-' + lib).textContent = count + ' / 50';
+    document.getElementById('cap-' + lib).classList.toggle('full', count >= 50);
     const card = document.querySelector('.staff-lib-card[data-lib="' + lib + '"]');
     card.classList.toggle('active', activeLibraries.includes(lib));
   });
 }
 
 function renderGrids() {
-["A","B","C"].forEach(lib => {
+["A","B","C","D","E","F"].forEach(lib => {
     const items = allProducts.filter(p => p.library === lib).sort((a,b) => a.position - b.position);
     const grid = document.getElementById('grid-' + lib);
     grid.innerHTML = '';
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 50; i++) {
       const p = items[i];
       const slot = document.createElement('div');
       slot.className = 'slot' + (p ? ' filled' : '');
@@ -205,7 +223,7 @@ function renderGrids() {
     }
 
     const addTile = document.createElement('div');
-    const isFull = items.length >= 20;
+    const isFull = items.length >= 50;
     addTile.className = 'add-tile' + (isFull ? ' full' : '');
     addTile.innerHTML = isFull ? 'Library full' : '<span class="plus">+</span>Add photo';
     if (!isFull) {
@@ -281,10 +299,10 @@ document.querySelectorAll('.staff-lib-card').forEach(card => {
     renderToggle();
     const msgEl = document.getElementById('lib-status-msg');
     msgEl.style.color = '';
-    if (activeLibraries.length < 2) {
-      msgEl.textContent = 'Only ' + activeLibraries.length + ' selected \u2014 pick ' + (2 - activeLibraries.length) + ' more, then Save.';
-    } else if (activeLibraries.length > 2) {
-      msgEl.textContent = 'You have 3 selected \u2014 you can only have 2 live. Click one to deselect it before saving.';
+    if (activeLibraries.length < 5) {
+      msgEl.textContent = 'Only ' + activeLibraries.length + ' selected \u2014 pick ' + (5 - activeLibraries.length) + ' more, then Save.';
+    } else if (activeLibraries.length > 5) {
+      msgEl.textContent = 'You have ' + activeLibraries.length + ' selected \u2014 you can only have 5 live. Click one to deselect it before saving.';
       msgEl.style.color = 'var(--staff-danger)';
     } else {
       msgEl.textContent = 'Ready to save.';
@@ -294,8 +312,8 @@ document.querySelectorAll('.staff-lib-card').forEach(card => {
 
 document.getElementById('save-libs-btn').addEventListener('click', async () => {
   const msgEl = document.getElementById('lib-status-msg');
-  if (activeLibraries.length !== 2) {
-    msgEl.textContent = 'You have ' + activeLibraries.length + ' selected \u2014 you must have exactly 2 live before saving.';
+  if (activeLibraries.length !== 5) {
+    msgEl.textContent = 'You have ' + activeLibraries.length + ' selected \u2014 you must have exactly 5 live before saving.';
     msgEl.style.color = 'var(--staff-danger)';
     return;
   }
