@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inventory — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .inv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .inv-grid .full { grid-column: 1 / -1; }
+  .low-cat { margin-top: 18px; }
+  .low-cat h4 { font-family: 'Cormorant Garamond', serif; color: var(--staff-gold); margin: 0 0 8px; font-size: 1.05rem; }
+  .low-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--staff-line); font-size: 0.88rem; gap: 12px; }
+  .low-cat .low-row:first-of-type { border-top: none; }
+  .low-row .qty { color: var(--staff-danger); font-weight: 600; white-space: nowrap; }
+  .low-row .supp { color: var(--staff-white-dim); font-size: 0.8rem; }
+  .search-row { display: flex; gap: 10px; align-items: end; margin-bottom: 16px; flex-wrap: wrap; }
+  .search-row .staff-field { margin-bottom: 0; flex: 1; min-width: 160px; }
+  .photo-row { display: flex; align-items: center; gap: 10px; }
+  .photo-preview { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; border: 1px solid var(--staff-line); }
+  .photo-empty { width: 60px; height: 60px; border-radius: 6px; border: 1px dashed var(--staff-line); display: flex; align-items: center; justify-content: center; color: var(--staff-white-dim); font-size: 1.2rem; }
+  .thumb { width: 40px; height: 40px; border-radius: 5px; object-fit: cover; display: block; }
+  .thumb-empty { width: 40px; height: 40px; border-radius: 5px; background: rgba(255,255,255,0.04); }
+  #status-msg, #search-status { font-size: 0.85rem; min-height: 20px; margin: 8px 0; }
+  .row-actions button { margin-right: 6px; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Inventory · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Inventory</h1>
+  <p class="staff-muted">Log every piece here — this is where its SKU is created and where its stock level lives. Shop Library pulls its details from what you add here.</p>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" style="margin-top:0;">Running low</h3>
+    <p class="staff-muted" style="font-size:0.85rem; margin-top:-6px;">Anything at or under its reorder point, grouped by type.</p>
+    <div id="low-stock-wrap"><p class="staff-muted" style="font-size:0.85rem;">Checking stock…</p></div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" id="form-title" style="margin-top:0;">Add an item</h3>
+    <div id="status-msg"></div>
+    <div class="inv-grid">
+      <div class="staff-field"><label>Category</label>
+        <select id="f-category">
+          <option value="">— select —</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option>
+        </select>
+      </div>
+      <div class="staff-field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. Gold hoop earrings" /></div>
+      <div class="staff-field full"><label>Description</label><textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece. This is what shows to customers on hover."></textarea></div>
+      <div class="staff-field"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. Everful Wholesale" /></div>
+      <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
+      <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
+      <div class="staff-field"><label>Reorder at</label><input type="number" min="0" id="f-reorder" value="2" /></div>
+      <div class="staff-field"><label>Cost per item (£)</label><input type="number" min="0" step="0.01" id="f-cost" /></div>
+      <div class="staff-field"><label>Sell price (£)</label><input type="number" min="0" step="0.01" id="f-price" /></div>
+      <div class="staff-field full"><label>Photo</label>
+        <div class="photo-row">
+          <div id="photo-preview" class="photo-empty">＋</div>
+          <input type="file" id="f-photo-file" accept="image/*" style="display:none;" />
+          <button type="button" class="staff-btn outline" id="photo-btn">Upload</button>
+          <button type="button" class="staff-btn outline" id="photo-clear-btn" style="display:none;">Remove</button>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:10px;">
+      <button class="staff-btn" id="save-btn">Add item</button>
+      <button class="staff-btn outline" id="cancel-edit-btn" style="display:none;">Cancel edit</button>
+    </div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Find an item</h3>
+    <div class="search-row">
+      <div class="staff-field"><label>Category</label>
+        <select id="s-category">
+          <option value="">All categories</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option>
+        </select>
+      </div>
+      <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
+      <button class="staff-btn" id="search-btn">Search</button>
+    </div>
+    <div id="search-status">Pick a category or type a search to see results.</div>
+    <div id="search-results"></div>
+  </div>
+</main>
+
+<script>
+let editingId = null;
+let pendingPhotoFile = null;
+let currentPhotoUrl = '';
+let lastResults = [];
+
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try { return await fetch(url, Object.assign({}, options, { signal: controller.signal })); }
+  finally { clearTimeout(timer); }
+}
+
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+async function loadLowStock() {
+  const wrap = document.getElementById('low-stock-wrap');
+  try {
+    const res = await fetch('/api/inv-lowstock');
+    const rows = await res.json();
+    if (!rows.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Nothing running low right now.</p>'; return; }
+    const groups = {};
+    rows.forEach(r => { const k = r.category || 'Uncategorised'; (groups[k] = groups[k] || []).push(r); });
+    wrap.innerHTML = Object.keys(groups).map(cat => `
+      <div class="low-cat">
+        <h4>${esc(cat)}</h4>
+        ${groups[cat].map(r => `
+          <div class="low-row">
+            <div><strong>${esc(r.name)}</strong> <span class="staff-muted">(${esc(r.sku)})</span><br>
+            <span class="supp">${r.supplier ? 'Reorder from ' + esc(r.supplier) + (r.supplier_code ? ' — their code: ' + esc(r.supplier_code) : '') : 'No supplier on file'}</span></div>
+            <span class="qty">${esc(r.quantity)} left</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+  } catch (e) {
+    wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load — check your connection and reload.</p>';
+  }
+}
+
+function setPhotoPreview(url) {
+  currentPhotoUrl = url || '';
+  const box = document.getElementById('photo-preview');
+  const clearBtn = document.getElementById('photo-clear-btn');
+  if (currentPhotoUrl) {
+    box.outerHTML = '<img id="photo-preview" class="photo-preview" src="' + currentPhotoUrl + '" />';
+    clearBtn.style.display = '';
+  } else {
+    box.outerHTML = '<div id="photo-preview" class="photo-empty">＋</div>';
+    clearBtn.style.display = 'none';
+  }
+}
+document.getElementById('photo-btn').addEventListener('click', () => document.getElementById('f-photo-file').click());
+document.getElementById('photo-clear-btn').addEventListener('click', () => { pendingPhotoFile = null; setPhotoPreview(''); });
+document.getElementById('f-photo-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingPhotoFile = file;
+  setPhotoPreview(URL.createObjectURL(file));
+});
+
+function resetForm() {
+  editingId = null;
+  pendingPhotoFile = null;
+  setPhotoPreview('');
+  ['f-category','f-name','f-description','f-supplier','f-supplier-code'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-photo-file').value = '';
+  document.getElementById('f-quantity').value = 0;
+  document.getElementById('f-reorder').value = 2;
+  document.getElementById('f-cost').value = '';
+  document.getElementById('f-price').value = '';
+  document.getElementById('form-title').textContent = 'Add an item';
+  document.getElementById('save-btn').textContent = 'Add item';
+  document.getElementById('cancel-edit-btn').style.display = 'none';
+}
+
+function openForEdit(row) {
+  editingId = row.id;
+  document.getElementById('f-category').value = row.category || '';
+  document.getElementById('f-name').value = row.name || '';
+  document.getElementById('f-description').value = row.notes || '';
+  document.getElementById('f-supplier').value = row.supplier || '';
+  document.getElementById('f-supplier-code').value = row.supplier_code || '';
+  document.getElementById('f-quantity').value = row.quantity || 0;
+  document.getElementById('f-reorder').value = (row.reorder_at === null || row.reorder_at === undefined) ? 2 : row.reorder_at;
+  document.getElementById('f-cost').value = row.cost_per_item || '';
+  document.getElementById('f-price').value = row.sell_price || '';
+  setPhotoPreview(row.photo_url || '');
+  document.getElementById('form-title').textContent = 'Editing ' + row.sku;
+  document.getElementById('save-btn').textContent = 'Save changes';
+  document.getElementById('cancel-edit-btn').style.display = '';
+  document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('status-msg');
+  const category = document.getElementById('f-category').value;
+  const name = document.getElementById('f-name').value.trim();
+  msgEl.style.color = '';
+  if (!category || !name) { msgEl.textContent = 'Category and name are required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = true;
+  try {
+    let photoUrl = currentPhotoUrl;
+    if (pendingPhotoFile) {
+      msgEl.textContent = 'Uploading photo...';
+      const fd = new FormData();
+      fd.append('file', pendingPhotoFile);
+      const upRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
+      const upData = await upRes.json();
+      if (!upRes.ok) { msgEl.textContent = upData.error || 'Photo upload failed.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+      photoUrl = upData.url;
+    }
+
+    const payload = {
+      category: category, name: name,
+      description: document.getElementById('f-description').value.trim(),
+      supplier: document.getElementById('f-supplier').value.trim(),
+      supplier_code: document.getElementById('f-supplier-code').value.trim(),
+      quantity: Number(document.getElementById('f-quantity').value) || 0,
+      reorder_at: Number(document.getElementById('f-reorder').value) || 0,
+      cost_per_item: Number(document.getElementById('f-cost').value) || 0,
+      sell_price: Number(document.getElementById('f-price').value) || 0,
+      photo_url: photoUrl
+    };
+
+    msgEl.textContent = 'Saving...';
+    let res, data;
+    if (editingId) {
+      res = await fetchWithTimeout('/api/inv-items?id=' + encodeURIComponent(editingId), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      }, 15000);
+      data = await res.json();
+      if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+      msgEl.style.color = 'var(--staff-ok)';
+      msgEl.textContent = 'Saved.';
+    } else {
+      res = await fetchWithTimeout('/api/inv-items', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      }, 15000);
+      data = await res.json();
+      if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong adding that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+      msgEl.style.color = 'var(--staff-ok)';
+      msgEl.textContent = 'Added — SKU ' + data.sku + '.';
+    }
+    resetForm();
+    loadLowStock();
+    runSearch();
+  } catch (err) {
+    msgEl.textContent = err.name === 'AbortError' ? 'That timed out — try again.' : 'Something went wrong: ' + err.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+async function runSearch() {
+  const category = document.getElementById('s-category').value;
+  const q = document.getElementById('s-query').value.trim();
+  const statusEl = document.getElementById('search-status');
+  const wrap = document.getElementById('search-results');
+  if (!category && !q) {
+    wrap.innerHTML = '';
+    statusEl.textContent = 'Pick a category or type a search to see results.';
+    statusEl.style.color = '';
+    return;
+  }
+  statusEl.textContent = 'Searching...';
+  statusEl.style.color = '';
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (q) params.set('q', q);
+  try {
+    const res = await fetch('/api/inv-search?' + params.toString());
+    const rows = await res.json();
+    lastResults = rows;
+    if (!rows.length) { wrap.innerHTML = ''; statusEl.textContent = 'No items match.'; return; }
+    statusEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's') + '.';
+    wrap.innerHTML = '' +
+      '<table class="staff-table">' +
+        '<thead><tr><th>Photo</th><th>Name</th><th>SKU</th><th>Category</th><th>Qty</th><th>Supplier</th><th>Code</th><th></th></tr></thead>' +
+        '<tbody>' +
+          rows.map(function (r) {
+            return '<tr data-id="' + r.id + '">' +
+              '<td>' + (r.photo_url ? '<img class="thumb" src="' + esc(r.photo_url) + '">' : '<div class="thumb-empty"></div>') + '</td>' +
+              '<td>' + esc(r.name) + '</td>' +
+              '<td class="staff-muted">' + esc(r.sku) + '</td>' +
+              '<td>' + esc(r.category) + '</td>' +
+              '<td>' + esc(r.quantity) + '</td>' +
+              '<td class="staff-muted">' + (esc(r.supplier) || '—') + '</td>' +
+              '<td class="staff-muted">' + (esc(r.supplier_code) || '—') + '</td>' +
+              '<td class="row-actions">' +
+                '<button class="staff-btn outline edit-btn" data-id="' + r.id + '" style="padding:6px 12px;">Edit</button>' +
+                '<button class="staff-del-btn del-btn" data-id="' + r.id + '">Delete</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('') +
+        '</tbody>' +
+      '</table>';
+    wrap.querySelectorAll('.edit-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const row = lastResults.find(function (r) { return String(r.id) === b.dataset.id; });
+        if (row) openForEdit(row);
+      });
+    });
+    wrap.querySelectorAll('.del-btn').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        if (!confirm('Delete this item? This cannot be undone.')) return;
+        await fetch('/api/inv-items?id=' + encodeURIComponent(b.dataset.id), { method: 'DELETE' });
+        if (editingId && String(editingId) === b.dataset.id) resetForm();
+        loadLowStock();
+        runSearch();
+      });
+    });
+  } catch (e) {
+    statusEl.textContent = 'Could not search — check your connection.';
+    statusEl.style.color = 'var(--staff-danger)';
+  }
+}
+document.getElementById('search-btn').addEventListener('click', runSearch);
+document.getElementById('s-query').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
+document.getElementById('s-category').addEventListener('change', runSearch);
+
+loadLowStock();
+</script>
+</body>
+</html>

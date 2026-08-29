@@ -101,6 +101,73 @@ async function handleInventory(request, env, url) {
   return json({ error: "Method not allowed" }, 405);
 }
 
+async function handleInvSearch(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const category = url.searchParams.get("category") || "";
+  const q = url.searchParams.get("q") || "";
+  if (!category && !q) return json([]);
+  let stmt;
+  if (category && q) {
+    const like = `%${q}%`;
+    stmt = env.DB.prepare(
+      `SELECT * FROM inventory WHERE category = ?1 AND (name LIKE ?2 OR sku LIKE ?2 OR supplier LIKE ?2 OR supplier_code LIKE ?2) ORDER BY name ASC`
+    ).bind(category, like);
+  } else if (category) {
+    stmt = env.DB.prepare(`SELECT * FROM inventory WHERE category = ?1 ORDER BY name ASC`).bind(category);
+  } else {
+    const like = `%${q}%`;
+    stmt = env.DB.prepare(
+      `SELECT * FROM inventory WHERE name LIKE ?1 OR sku LIKE ?1 OR supplier LIKE ?1 OR supplier_code LIKE ?1 ORDER BY name ASC`
+    ).bind(like);
+  }
+  const { results } = await stmt.all();
+  return json(results);
+}
+
+async function handleInvLowStock(request, env) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM inventory WHERE quantity <= COALESCE(reorder_at, 2) ORDER BY category ASC, quantity ASC`
+  ).all();
+  return json(results);
+}
+
+async function handleInvItems(request, env, url) {
+  if (request.method === "POST") {
+    const b = await request.json();
+    if (!b.name || !b.category) return json({ error: "Name and category are required" }, 400);
+    const sku = await nextSku(env);
+    await env.DB.prepare(
+      `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+    ).bind(
+      sku, b.name, b.category, b.quantity || 0, b.cost_per_item || 0, b.sell_price || 0,
+      b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || ""
+    ).run();
+    return json({ success: true, sku });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fieldMap = { name: "name", category: "category", quantity: "quantity", cost_per_item: "cost_per_item", sell_price: "sell_price", reorder_at: "reorder_at", supplier: "supplier", supplier_code: "supplier_code", photo_url: "photo_url", description: "notes" };
+    const sets = []; const vals = [];
+    Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE inventory SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM inventory WHERE id = ?`).bind(id).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
 async function handleSales(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM sales ORDER BY sale_date DESC, created_at DESC`).all();
@@ -564,6 +631,9 @@ export default {
         return json({ error: "Not found" }, 404);
       }
       if (path === "/api/inventory") return handleInventory(request, env, url);
+      if (path === "/api/inv-search") return handleInvSearch(request, env, url);
+      if (path === "/api/inv-lowstock") return handleInvLowStock(request, env);
+      if (path === "/api/inv-items") return handleInvItems(request, env, url);
       if (path === "/api/sales") return handleSales(request, env, url);
       if (path === "/api/expenditure") return handleExpenditure(request, env, url);
       if (path === "/api/suppliers") return handleSuppliers(request, env, url);
