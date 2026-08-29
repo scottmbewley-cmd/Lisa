@@ -1,6 +1,7 @@
 // Evelle — browser-local cart (localStorage), shared across all public pages.
 const CART_KEY = 'evelle_cart_v1';
-const CHECKOUT_ENABLED = false; // flips to true once checkout.html ships
+const CHECKOUT_ENABLED = true;
+const UK_SHIPPING_FLAT = 2.50; // must match the shipping rate used in checkout.html's order summary
 
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
