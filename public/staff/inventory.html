@@ -25,6 +25,15 @@
   .thumb-empty { width: 40px; height: 40px; border-radius: 5px; background: rgba(255,255,255,0.04); }
   #status-msg, #search-status { font-size: 0.85rem; min-height: 20px; margin: 8px 0; }
   .row-actions button { margin-right: 6px; }
+  @media print {
+    body.staff-body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; }
+    #print-area th, #print-area td { border: 1px solid #999; padding: 8px; color: #000; }
+    #print-area th { background: #eee; }
+  }
+  .print-only { display: none; }
 </style>
 </head>
 <body class="staff-body">
@@ -106,8 +115,14 @@
       <button class="staff-btn outline" id="report-all-btn" type="button" style="padding:8px 16px;">Select all</button>
       <button class="staff-btn outline" id="report-none-btn" type="button" style="padding:8px 16px;">Select none</button>
       <button class="staff-btn" id="report-run-btn" type="button">Run report</button>
+      <button class="staff-btn outline" id="report-print-btn" type="button" style="padding:8px 16px;">Print report</button>
     </div>
     <div id="report-results" style="margin-top:16px;"></div>
+    <div id="print-area" class="print-only">
+      <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Stock Report</h2>
+      <p id="print-date" style="margin:0 0 16px; font-size:0.9rem;"></p>
+      <div id="print-table-wrap"></div>
+    </div>
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
@@ -420,7 +435,7 @@ async function runReport() {
     const totalQty = rows.reduce(function (s, r) { return s + r.total_qty; }, 0);
     const totalValue = rows.reduce(function (s, r) { return s + r.total_value; }, 0);
     const totalLow = rows.reduce(function (s, r) { return s + r.low_count; }, 0);
-    wrap.innerHTML = '' +
+    const tableHtml = '' +
       '<table class="staff-table">' +
         '<thead><tr><th>Category</th><th>Items</th><th>Total stock</th><th>Stock value</th><th>Low stock</th></tr></thead>' +
         '<tbody>' +
@@ -432,11 +447,17 @@ async function runReport() {
             : '') +
         '</tbody>' +
       '</table>';
+    wrap.innerHTML = tableHtml;
+    document.getElementById('print-table-wrap').innerHTML = tableHtml;
+    document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   } catch (e) {
     wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load the report — check your connection and try again.</p>';
   }
 }
 document.getElementById('report-run-btn').addEventListener('click', runReport);
+document.getElementById('report-print-btn').addEventListener('click', function () {
+  runReport().then(function () { window.print(); });
+});
 runReport();
 
 loadLowStock();
