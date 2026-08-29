@@ -33,6 +33,11 @@
   }
   .cashflow-note strong { color: var(--staff-white); }
 
+  .cat-filter-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; }
+  .cat-filter-row label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--staff-white-dim); }
+  .cat-filter-row input[type="checkbox"] { width: auto; }
+  .cat-filter-total { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; color: var(--staff-gold); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--staff-line); }
+
   .entry-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; }
   #entry-status-msg { font-size: 0.85rem; min-height: 20px; margin: 8px 0; }
   .recent-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--staff-line); font-size: 0.88rem; gap: 12px; }
@@ -102,7 +107,14 @@
     </div>
 
     <h4 class="staff-serif" style="margin:20px 0 10px;">Expenditure by Category</h4>
+    <p class="staff-muted" style="font-size:0.85rem;">Pick one, several, or all categories to narrow the breakdown and total below.</p>
+    <div class="cat-filter-row" id="cat-filter-row"></div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin:4px 0 14px;">
+      <button class="staff-btn outline" id="cat-filter-all-btn" type="button" style="padding:7px 14px; font-size:0.78rem;">Select all</button>
+      <button class="staff-btn outline" id="cat-filter-none-btn" type="button" style="padding:7px 14px; font-size:0.78rem;">Select none</button>
+    </div>
     <div id="category-table-wrap"></div>
+    <div id="category-filter-total" class="cat-filter-total"></div>
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
@@ -132,11 +144,28 @@
   <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Accounting Report</h2>
   <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
   <div id="print-body-wrap"></div>
+  <h3 style="font-family:'Cormorant Garamond',serif; margin:18px 0 4px; font-size:1.15rem;">Expenditure by Category<span id="print-category-scope"></span></h3>
+  <div id="print-category-wrap"></div>
 </div>
 
 <script>
 let activePeriod = 'month';
 let currentFrom = '', currentTo = '';
+let lastCategoryData = []; // the report's full expense_by_category for the current period — filtering below never re-fetches
+
+// Matches the worker's EXPENSE_CATEGORIES plus 'Inventory Stock' (the
+// auto-logged category, deliberately not offered on the manual entry form).
+const CATEGORY_FILTER_LIST = ['Packaging', 'Subscriptions', 'Office', 'Marketing', 'Fees', 'Other', 'Inventory Stock'];
+function catFilterId(cat) { return 'cf-' + cat.replace(/\s+/g, '-'); }
+
+// All checked by default, so the breakdown starts showing everything —
+// same as before this filter existed.
+const catFilterRow = document.getElementById('cat-filter-row');
+CATEGORY_FILTER_LIST.forEach(cat => {
+  const label = document.createElement('label');
+  label.innerHTML = '<input type="checkbox" id="' + catFilterId(cat) + '" checked> ' + (cat === 'Inventory Stock' ? cat + ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow)</span>' : cat);
+  catFilterRow.appendChild(label);
+});
 
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function money(n) { return '£' + Number(n || 0).toFixed(2); }
@@ -196,6 +225,62 @@ document.getElementById('custom-apply-btn').addEventListener('click', () => {
   runReport(from, to);
 });
 
+function selectedCategoryFilters() {
+  return CATEGORY_FILTER_LIST.filter(cat => {
+    const el = document.getElementById(catFilterId(cat));
+    return el && el.checked;
+  });
+}
+
+function categoryRowHtml(c) {
+  const isStock = c.category === 'Inventory Stock';
+  return '<tr' + (isStock ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) +
+    (isStock ? ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow, not in Net Profit)</span>' : '') +
+    '</td><td>' + money(c.amount) + '</td></tr>';
+}
+
+// Filters the already-fetched category breakdown client-side (no re-fetch)
+// and keeps the on-screen table, the "total for selected" figure, and the
+// print view all in sync with the current checkbox selection.
+function renderCategoryTable() {
+  const selected = selectedCategoryFilters();
+  const filtered = lastCategoryData.filter(c => selected.includes(c.category));
+  const total = filtered.reduce((sum, c) => sum + Number(c.amount), 0);
+  const allSelected = selected.length === CATEGORY_FILTER_LIST.length;
+
+  const catTableHtml = filtered.length
+    ? '<table class="staff-table"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
+        filtered.map(categoryRowHtml).join('') +
+      '</tbody></table>'
+    : '<p class="staff-muted" style="font-size:0.85rem;">No expenditure in the selected categories for this period.</p>';
+  document.getElementById('category-table-wrap').innerHTML = catTableHtml;
+
+  const totalLabel = allSelected
+    ? 'Total (all categories): '
+    : 'Total for selected (' + selected.length + ' categor' + (selected.length === 1 ? 'y' : 'ies') + '): ';
+  document.getElementById('category-filter-total').textContent = totalLabel + money(total);
+
+  // Print reflects exactly this same filtered selection, not always everything.
+  document.getElementById('print-category-scope').textContent = allSelected ? '' : ' — filtered: ' + selected.join(', ');
+  const printCatHtml = filtered.length
+    ? '<table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
+        filtered.map(categoryRowHtml).join('') +
+        '<tr class="total-row"><td>' + esc(totalLabel.replace(/: $/, '')) + '</td><td>' + money(total) + '</td></tr>' +
+      '</tbody></table>'
+    : '<p>No expenditure in the selected categories for this period.</p>';
+  document.getElementById('print-category-wrap').innerHTML = printCatHtml;
+}
+
+document.getElementById('cat-filter-row').addEventListener('change', renderCategoryTable);
+document.getElementById('cat-filter-all-btn').addEventListener('click', () => {
+  CATEGORY_FILTER_LIST.forEach(cat => { document.getElementById(catFilterId(cat)).checked = true; });
+  renderCategoryTable();
+});
+document.getElementById('cat-filter-none-btn').addEventListener('click', () => {
+  CATEGORY_FILTER_LIST.forEach(cat => { document.getElementById(catFilterId(cat)).checked = false; });
+  renderCategoryTable();
+});
+
 async function runReport(from, to) {
   currentFrom = from; currentTo = to;
   const statusEl = document.getElementById('report-status');
@@ -212,13 +297,8 @@ async function runReport(from, to) {
     document.getElementById('stat-net').textContent = money(data.net_profit);
     document.getElementById('stat-stock-cash').textContent = money(data.stock_cash_spent);
 
-    const cats = data.expense_by_category || [];
-    const catTableHtml = cats.length
-      ? '<table class="staff-table"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
-          cats.map(c => '<tr' + (c.category === 'Inventory Stock' ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (c.category === 'Inventory Stock' ? ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow, not in Net Profit)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>').join('') +
-        '</tbody></table>'
-      : '<p class="staff-muted" style="font-size:0.85rem;">No expenditure logged in this period.</p>';
-    document.getElementById('category-table-wrap').innerHTML = catTableHtml;
+    lastCategoryData = data.expense_by_category || [];
+    renderCategoryTable();
 
     document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
     document.getElementById('print-body-wrap').innerHTML =
@@ -229,7 +309,7 @@ async function runReport(from, to) {
         '<tr><td>Operating Expenses</td><td>' + money(data.operating_expenses) + '</td></tr>' +
         '<tr class="total-row"><td>Net Profit</td><td>' + money(data.net_profit) + '</td></tr>' +
         '<tr><td>Cash Spent on Inventory Stock (not in profit above)</td><td>' + money(data.stock_cash_spent) + '</td></tr>' +
-      '</tbody></table>' + catTableHtml;
+      '</tbody></table>';
   } catch (e) {
     statusEl.textContent = 'Could not load the report — check your connection and try again.';
   }
