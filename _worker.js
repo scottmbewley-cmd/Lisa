@@ -135,14 +135,28 @@ async function handleInvLowStock(request, env) {
 async function handleInvItems(request, env, url) {
   if (request.method === "POST") {
     const b = await request.json();
-    if (!b.name || !b.category) return json({ error: "Name and category are required" }, 400);
+    const missing = [];
+    if (!b.category) missing.push("category");
+    if (!b.name) missing.push("name");
+    if (!b.description) missing.push("description");
+    if (!b.photo_url) missing.push("photo");
+    if (!b.sell_price) missing.push("sell price");
+    if (missing.length) return json({ error: "Missing: " + missing.join(", ") + ". All of these are needed before it can go live in the shop." }, 400);
+
+    const caps = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
+    const cap = caps[b.category];
+    if (!cap) return json({ error: "Unknown category" }, 400);
+    const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(shop_position),-1) as maxPos FROM inventory WHERE category = ?1 AND shop_position IS NOT NULL`).bind(b.category).first();
+    if (countRow.n >= cap) return json({ error: b.category + " Library is full (" + cap + "/" + cap + "). Remove a piece from Shop Library before adding another." }, 400);
+
     const sku = await nextSku(env);
+    const nextPos = countRow.maxPos + 1;
     await env.DB.prepare(
-      `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+      `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`
     ).bind(
       sku, b.name, b.category, b.quantity || 0, b.cost_per_item || 0, b.sell_price || 0,
-      b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || ""
+      b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || "", nextPos
     ).run();
     return json({ success: true, sku });
   }
@@ -304,7 +318,7 @@ function escapeHtml(s) {
 
 async function getActiveLibraries(env) {
   const { results } = await env.DB.prepare(`SELECT active_libraries FROM shop_config WHERE id = 1`).all();
-  const raw = (results[0] && results[0].active_libraries) || "A,B,C,D,E";
+  const raw = (results[0] && results[0].active_libraries) || "Ring,Bracelet,Necklace,Earring,Anklet";
   return raw.split(",").map(s => s.trim()).filter(Boolean);
 }
 
@@ -312,18 +326,20 @@ async function renderShopPage(request, env) {
   const libs = await getActiveLibraries(env);
   const placeholders = libs.map((_, i) => `?${i + 1}`).join(",");
   const { results } = libs.length
-    ? await env.DB.prepare(`SELECT * FROM shop_products WHERE library IN (${placeholders}) ORDER BY position ASC, created_at ASC`).bind(...libs).all()
+    ? await env.DB.prepare(`SELECT * FROM inventory WHERE category IN (${placeholders}) AND shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).bind(...libs).all()
     : { results: [] };
 
   const cardsHtml = results.length
     ? results.map(p => `
       <div class="product-card">
-        <div class="product-image"><img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" /></div>
+        <div class="product-image"><img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" /></div>
         <div class="product-info">
           <span class="eyebrow" style="font-size:0.85rem;">${escapeHtml(p.category)}</span>
           <h3>${escapeHtml(p.name)}</h3>
-          <p class="product-price">${escapeHtml(p.price)}</p>
+          <p class="product-price">\u00a3${Number(p.sell_price || 0).toFixed(2)}</p>
+          <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
         </div>
+        <div class="product-desc">${escapeHtml(p.notes)}</div>
       </div>`).join("")
     : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon — check back shortly.</p>`;
 
@@ -344,18 +360,20 @@ async function renderHomePage(request, env) {
   let products = [];
   if (ids.length) {
     const placeholders = ids.map((_, i) => `?${i + 1}`).join(",");
-    const { results } = await env.DB.prepare(`SELECT * FROM shop_products WHERE id IN (${placeholders})`).bind(...ids).all();
+    const { results } = await env.DB.prepare(`SELECT * FROM inventory WHERE id IN (${placeholders})`).bind(...ids).all();
     products = ids.map(id => results.find(r => r.id === id)).filter(Boolean);
   }
 
   const cardsHtml = products.length
     ? products.map(p => `
       <div class="product-card">
-        <div class="product-image"><img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" /></div>
+        <div class="product-image"><img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" /></div>
         <div class="product-info">
           <h3>${escapeHtml(p.name)}</h3>
-          <p class="product-price">${escapeHtml(p.price)}</p>
+          <p class="product-price">\u00a3${Number(p.sell_price || 0).toFixed(2)}</p>
+          <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
         </div>
+        <div class="product-desc">${escapeHtml(p.notes)}</div>
       </div>`).join("")
     : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon \u2014 check back shortly.</p>`;
 
@@ -500,39 +518,23 @@ async function handleCareContent(request, env) {
 }
 async function handleShopProducts(request, env, url) {
   if (request.method === "GET") {
-    const { results } = await env.DB.prepare(`SELECT * FROM shop_products ORDER BY library, created_at DESC`).all();
-    return json(results);
-  }
-  if (request.method === "POST") {
-    const b = await request.json();
-    if (!b.name || !b.price || !b.library) return json({ error: "name, price, and library are required" }, 400);
-    const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(position),-1) as maxPos FROM shop_products WHERE library = ?1`).bind(b.library).first();
-    if (countRow.n >= 50) return json({ error: "Library " + b.library + " is full (50/50). Remove a piece before adding another." }, 400);
-    const nextPos = countRow.maxPos + 1;
-    const insertRes = await env.DB.prepare(
-      `INSERT INTO shop_products (name, price, category, image_url, library, position) VALUES (?1,?2,?3,?4,?5,?6)`
-    ).bind(b.name, b.price, b.category || "", b.image_url || "", b.library, nextPos).run();
-    return json({ success: true, id: insertRes.meta.last_row_id });
-  }
-  if (request.method === "PATCH") {
-    const id = url.searchParams.get("id");
-    if (!id) return json({ error: "id required" }, 400);
-    const b = await request.json();
-    const fields = ["name", "price", "category", "image_url", "library"];
-    const sets = []; const vals = [];
-    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f]); } });
-    if (!sets.length) return json({ error: "no fields to update" }, 400);
-    vals.push(id);
-    await env.DB.prepare(`UPDATE shop_products SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
-    return json({ success: true });
-  }
-  if (request.method === "DELETE") {
-    const id = url.searchParams.get("id");
-    if (!id) return json({ error: "id required" }, 400);
-    await env.DB.prepare(`DELETE FROM shop_products WHERE id = ?`).bind(id).run();
-    return json({ success: true });
+    const { results } = await env.DB.prepare(`SELECT id, name, category, sku, quantity, sell_price, photo_url, shop_position FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).all();
+    const mapped = results.map(r => ({
+      id: r.id, name: r.name, category: r.category, sku: r.sku, quantity: r.quantity,
+      price: "\u00a3" + Number(r.sell_price || 0).toFixed(2),
+      image_url: r.photo_url, position: r.shop_position
+    }));
+    return json(mapped);
   }
   return json({ error: "Method not allowed" }, 405);
+}
+
+async function handleShopUnpublish(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const b = await request.json();
+  if (!b.id) return json({ error: "id required" }, 400);
+  await env.DB.prepare(`UPDATE inventory SET shop_position = NULL WHERE id = ?1`).bind(b.id).run();
+  return json({ success: true });
 }
 
 async function handleImageUpload(request, env) {
@@ -555,11 +557,12 @@ async function handleImageUpload(request, env) {
 async function handleShopReorder(request, env) {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const b = await request.json();
-  if (!b.library || !["A","B","C","D","E","F"].includes(b.library) || !Array.isArray(b.order)) {
-    return json({ error: "library and order[] (product ids) are required" }, 400);
+  const validCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+  if (!b.category || !validCats.includes(b.category) || !Array.isArray(b.order)) {
+    return json({ error: "category and order[] (inventory ids) are required" }, 400);
   }
   const stmts = b.order.map((id, idx) =>
-    env.DB.prepare(`UPDATE shop_products SET position = ?1 WHERE id = ?2 AND library = ?3`).bind(idx, id, b.library)
+    env.DB.prepare(`UPDATE inventory SET shop_position = ?1 WHERE id = ?2 AND category = ?3`).bind(idx, id, b.category)
   );
   if (stmts.length) await env.DB.batch(stmts);
   return json({ success: true });
@@ -573,8 +576,8 @@ async function handleShopConfig(request, env) {
   if (request.method === "POST") {
     const b = await request.json();
     const libs = Array.isArray(b.active_libraries) ? b.active_libraries : [];
-    const valid = libs.filter(l => ["A", "B", "C", "D", "E", "F"].includes(l));
-    if (valid.length !== 5) return json({ error: "Exactly five libraries must be active" }, 400);
+    const validCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+    const valid = libs.filter(l => validCats.includes(l));
     await env.DB.prepare(`UPDATE shop_config SET active_libraries = ?1 WHERE id = 1`).bind(valid.join(",")).run();
     return json({ success: true, active_libraries: valid });
   }
@@ -639,6 +642,7 @@ export default {
       if (path === "/api/suppliers") return handleSuppliers(request, env, url);
       if (path === "/api/notes") return handleNotes(request, env);
       if (path === "/api/shop-products") return handleShopProducts(request, env, url);
+      if (path === "/api/shop-unpublish") return handleShopUnpublish(request, env);
       if (path === "/api/shop-config") return handleShopConfig(request, env);
       if (path === "/api/shop-reorder") return handleShopReorder(request, env);
       if (path === "/api/upload-image") return handleImageUpload(request, env);

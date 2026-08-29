@@ -4,4 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (toggle && nav) {
     toggle.addEventListener('click', () => nav.classList.toggle('open'));
   }
+
+  document.querySelectorAll('.product-card').forEach(card => {
+    card.addEventListener('click', () => card.classList.toggle('open'));
+  });
 });

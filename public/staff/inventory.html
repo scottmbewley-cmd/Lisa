@@ -45,7 +45,7 @@
 <main class="staff-main">
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Inventory</h1>
-  <p class="staff-muted">Log every piece here — this is where its SKU is created and where its stock level lives. Shop Library pulls its details from what you add here.</p>
+  <p class="staff-muted">Log every piece here — fill it in fully and it goes straight to Shop Library, live on the site. This is where its SKU is created and its stock level lives.</p>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
     <h3 class="staff-serif" style="margin-top:0;">Running low</h3>
@@ -60,11 +60,11 @@
       <div class="staff-field"><label>Category</label>
         <select id="f-category">
           <option value="">— select —</option>
-          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
         </select>
       </div>
       <div class="staff-field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. Gold hoop earrings" /></div>
-      <div class="staff-field full"><label>Description</label><textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece. This is what shows to customers on hover."></textarea></div>
+      <div class="staff-field full"><label>Description</label><textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece. Required — this is what shows to customers on hover."></textarea></div>
       <div class="staff-field"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. Everful Wholesale" /></div>
       <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
       <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
@@ -104,7 +104,7 @@
       <div class="staff-field"><label>Category</label>
         <select id="s-category">
           <option value="">All categories</option>
-          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
         </select>
       </div>
       <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
@@ -237,8 +237,21 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   const msgEl = document.getElementById('status-msg');
   const category = document.getElementById('f-category').value;
   const name = document.getElementById('f-name').value.trim();
+  const description = document.getElementById('f-description').value.trim();
+  const sellPrice = document.getElementById('f-price').value;
   msgEl.style.color = '';
   if (!category || !name) { msgEl.textContent = 'Category and name are required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  if (!editingId) {
+    const missing = [];
+    if (!description) missing.push('description');
+    if (!currentPhotoUrl && !pendingPhotoFile) missing.push('photo');
+    if (!sellPrice) missing.push('sell price');
+    if (missing.length) {
+      msgEl.textContent = 'Missing: ' + missing.join(', ') + '. All of these are needed before it can go live in the shop.';
+      msgEl.style.color = 'var(--staff-danger)';
+      return;
+    }
+  }
 
   const saveBtn = document.getElementById('save-btn');
   saveBtn.disabled = true;
@@ -283,7 +296,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
       data = await res.json();
       if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong adding that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
       msgEl.style.color = 'var(--staff-ok)';
-      msgEl.textContent = 'Added — SKU ' + data.sku + '.';
+      msgEl.textContent = 'Added — SKU ' + data.sku + '. Live in the shop now.';
     }
     resetForm();
     loadLowStock();
