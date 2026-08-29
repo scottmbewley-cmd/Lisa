@@ -386,6 +386,46 @@ async function handleContactContent(request, env) {
   }
   return json({ error: "Method not allowed" }, 405);
 }
+async function getCareContent(env) {
+  const { results } = await env.DB.prepare(`SELECT * FROM care_content WHERE id = 1`).all();
+  return results[0] || {};
+}
+
+async function renderCarePage(request, env) {
+  const cc = await getCareContent(env);
+  const noteHtml = cc.note
+    ? `<p class="muted" style="font-style:italic; margin-top:30px;">${escapeHtml(cc.note)}</p>`
+    : "";
+  const template = await (await env.ASSETS.fetch(new Request(new URL("/care.html", request.url)))).text();
+  const html = template
+    .replace("<!--CARE_EYEBROW-->", escapeHtml(cc.eyebrow || "Keep it shining"))
+    .replace("<!--CARE_HEADING-->", escapeHtml(cc.heading || "Jewellery Care"))
+    .replace("<!--CARE_S1_TITLE-->", escapeHtml(cc.section1_title || ""))
+    .replace("<!--CARE_S1_BODY-->", escapeHtml(cc.section1_body || ""))
+    .replace("<!--CARE_S2_TITLE-->", escapeHtml(cc.section2_title || ""))
+    .replace("<!--CARE_S2_BODY-->", escapeHtml(cc.section2_body || ""))
+    .replace("<!--CARE_S3_TITLE-->", escapeHtml(cc.section3_title || ""))
+    .replace("<!--CARE_S3_BODY-->", escapeHtml(cc.section3_body || ""))
+    .replace("<!--CARE_NOTE-->", noteHtml);
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function handleCareContent(request, env) {
+  if (request.method === "GET") {
+    return json(await getCareContent(env));
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const fields = ["eyebrow", "heading", "section1_title", "section1_body", "section2_title", "section2_body", "section3_title", "section3_body", "note"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f] === "" ? null : b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    await env.DB.prepare(`UPDATE care_content SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
 async function handleShopProducts(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM shop_products ORDER BY library, created_at DESC`).all();
@@ -527,6 +567,7 @@ export default {
       if (path === "/api/home-content") return handleHomeContent(request, env);
       if (path === "/api/story-content") return handleStoryContent(request, env);
       if (path === "/api/contact-content") return handleContactContent(request, env);
+      if (path === "/api/care-content") return handleCareContent(request, env);
       return json({ error: "Not found" }, 404);
     }
 
@@ -559,6 +600,14 @@ export default {
     if (path === "/contact.html" && request.method === "GET") {
       try {
         return await renderContactPage(request, env);
+      } catch (e) {
+        return env.ASSETS.fetch(request);
+      }
+    }
+    // Care page is server-rendered from the database
+    if (path === "/care.html" && request.method === "GET") {
+      try {
+        return await renderCarePage(request, env);
       } catch (e) {
         return env.ASSETS.fetch(request);
       }
