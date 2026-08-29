@@ -9,11 +9,23 @@
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
 <style>
   .ce-section { margin-bottom: 40px; }
-  .hero-preview {
-    width: 100%; max-width: 560px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden;
-    border: 1px solid var(--staff-line); background: var(--staff-card); margin-bottom: 16px;
+
+  .hero-viewport {
+    width: 100%; max-width: 560px; aspect-ratio: 16/9; border-radius: 8px;
+    border: 1px solid var(--staff-line); background: var(--staff-card);
+    position: relative; overflow: hidden; touch-action: none; cursor: grab; margin-bottom: 12px;
   }
-  .hero-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hero-viewport.dragging { cursor: grabbing; }
+  .hero-viewport.empty { display: flex; align-items: center; justify-content: center; color: rgba(245,241,234,0.3); font-size: 0.8rem; }
+  #hero-crop-img {
+    position: absolute; top: 0; left: 0; transform-origin: 0 0;
+    user-select: none; -webkit-user-drag: none; pointer-events: none; max-width: none; max-height: none;
+  }
+  .zoom-row { display: flex; align-items: center; gap: 10px; max-width: 560px; margin-bottom: 16px; }
+  .zoom-row span { font-size: 0.78rem; color: var(--staff-white-dim); white-space: nowrap; }
+  .zoom-row input[type="range"] { flex: 1; accent-color: var(--staff-gold); }
+  .crop-hint { font-size: 0.78rem; color: var(--staff-white-dim); margin: 0 0 14px; }
+
   .pick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 16px; }
   .pick-slot {
     border: 1px solid var(--staff-line); border-radius: 6px; overflow: hidden; background: var(--staff-card);
@@ -54,8 +66,17 @@
 
   <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
     <h3 class="staff-serif" style="margin-top:0;">Hero image</h3>
-    <p class="staff-muted" style="font-size:0.85rem;">The large banner photo at the top of the homepage. Landscape orientation recommended.</p>
-    <div class="hero-preview"><img id="hero-preview-img" src="" alt="Hero preview"></div>
+    <p class="staff-muted" style="font-size:0.85rem;">The large banner photo at the top of the homepage. Drag to reposition, pinch or scroll to zoom — exactly what's framed in the box is what goes live.</p>
+
+    <div class="hero-viewport" id="hero-viewport">
+      <img id="hero-crop-img" src="" alt="" draggable="false" />
+    </div>
+    <p class="crop-hint" id="crop-hint">Drag to reposition. Pinch, or scroll/two-finger swipe on trackpad, to zoom.</p>
+    <div class="zoom-row">
+      <span>Zoom</span>
+      <input type="range" id="zoom-slider" min="100" max="400" value="100" />
+    </div>
+
     <input type="file" id="hero-file" accept="image/*" style="display:none;" />
     <button class="staff-btn" id="hero-upload-btn">Replace Hero Image</button>
   </div>
@@ -84,8 +105,170 @@
 <script>
 let allProducts = [];
 let homeContent = {};
-let pendingHeroFile = null;
 
+/* ---------- Hero crop engine ---------- */
+const viewport = document.getElementById('hero-viewport');
+const cropImg = document.getElementById('hero-crop-img');
+const zoomSlider = document.getElementById('zoom-slider');
+
+let natW = 0, natH = 0;      // natural pixel size of the loaded image
+let scale = 1, minScale = 1; // current & cover scale
+let tx = 0, ty = 0;          // current translate (px, viewport space)
+let cropLoaded = false;
+
+function viewportSize() {
+  const r = viewport.getBoundingClientRect();
+  return { w: r.width, h: r.height };
+}
+
+function clampTranslate() {
+  const { w, h } = viewportSize();
+  const minX = Math.min(0, w - natW * scale);
+  const minY = Math.min(0, h - natH * scale);
+  tx = Math.max(minX, Math.min(0, tx));
+  ty = Math.max(minY, Math.min(0, ty));
+}
+
+function applyTransform() {
+  cropImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+}
+
+function setScale(newScale, centerX, centerY) {
+  const { w, h } = viewportSize();
+  const cx = centerX === undefined ? w / 2 : centerX;
+  const cy = centerY === undefined ? h / 2 : centerY;
+  const imgX = (cx - tx) / scale;
+  const imgY = (cy - ty) / scale;
+  scale = Math.max(minScale, Math.min(minScale * 4, newScale));
+  tx = cx - imgX * scale;
+  ty = cy - imgY * scale;
+  clampTranslate();
+  applyTransform();
+  zoomSlider.value = Math.round((scale / minScale) * 100);
+}
+
+function loadCropImage(src) {
+  cropLoaded = false;
+  const probe = new Image();
+  probe.onload = () => {
+    natW = probe.naturalWidth;
+    natH = probe.naturalHeight;
+    cropImg.src = src;
+    const { w, h } = viewportSize();
+    minScale = Math.max(w / natW, h / natH);
+    scale = minScale;
+    tx = (w - natW * scale) / 2;
+    ty = (h - natH * scale) / 2;
+    clampTranslate();
+    applyTransform();
+    zoomSlider.value = 100;
+    viewport.classList.remove('empty');
+    cropLoaded = true;
+  };
+  probe.src = src;
+}
+
+/* Drag / pan (mouse + single touch) */
+let dragging = false, dragStartX = 0, dragStartY = 0, dragStartTx = 0, dragStartTy = 0;
+
+viewport.addEventListener('pointerdown', (e) => {
+  if (!cropLoaded) return;
+  dragging = true;
+  viewport.classList.add('dragging');
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  dragStartTx = tx; dragStartTy = ty;
+  viewport.setPointerCapture(e.pointerId);
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  tx = dragStartTx + (e.clientX - dragStartX);
+  ty = dragStartTy + (e.clientY - dragStartY);
+  clampTranslate();
+  applyTransform();
+});
+function endDrag(e) {
+  dragging = false;
+  viewport.classList.remove('dragging');
+}
+viewport.addEventListener('pointerup', endDrag);
+viewport.addEventListener('pointercancel', endDrag);
+viewport.addEventListener('pointerleave', endDrag);
+
+/* Wheel / trackpad zoom */
+viewport.addEventListener('wheel', (e) => {
+  if (!cropLoaded) return;
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+  setScale(scale * factor, cx, cy);
+}, { passive: false });
+
+/* Pinch zoom (two-finger touch) */
+let pinchStartDist = 0, pinchStartScale = 1, pinchStartTx = 0, pinchStartTy = 0, pinchStartCx = 0, pinchStartCy = 0;
+
+function touchDist(t0, t1) {
+  return Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+}
+function touchMid(t0, t1, rect) {
+  return { x: (t0.clientX + t1.clientX) / 2 - rect.left, y: (t0.clientY + t1.clientY) / 2 - rect.top };
+}
+
+viewport.addEventListener('touchstart', (e) => {
+  if (!cropLoaded) return;
+  if (e.touches.length === 2) {
+    dragging = false;
+    const rect = viewport.getBoundingClientRect();
+    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+    pinchStartScale = scale;
+    pinchStartTx = tx; pinchStartTy = ty;
+    const mid = touchMid(e.touches[0], e.touches[1], rect);
+    pinchStartCx = mid.x; pinchStartCy = mid.y;
+  }
+}, { passive: true });
+
+viewport.addEventListener('touchmove', (e) => {
+  if (!cropLoaded || e.touches.length !== 2) return;
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const newDist = touchDist(e.touches[0], e.touches[1]);
+  const ratio = newDist / (pinchStartDist || newDist);
+  const newScale = Math.max(minScale, Math.min(minScale * 4, pinchStartScale * ratio));
+  const mid = touchMid(e.touches[0], e.touches[1], rect);
+
+  const imgX = (pinchStartCx - pinchStartTx) / pinchStartScale;
+  const imgY = (pinchStartCy - pinchStartTy) / pinchStartScale;
+  scale = newScale;
+  tx = mid.x - imgX * scale;
+  ty = mid.y - imgY * scale;
+  clampTranslate();
+  applyTransform();
+  zoomSlider.value = Math.round((scale / minScale) * 100);
+}, { passive: false });
+
+zoomSlider.addEventListener('input', () => {
+  if (!cropLoaded) return;
+  const target = minScale * (zoomSlider.value / 100);
+  setScale(target);
+});
+
+/* Render current crop framing to a fixed-size canvas, return a Blob */
+function renderCropToBlob(outW, outH) {
+  return new Promise((resolve) => {
+    const { w, h } = viewportSize();
+    const sx = -tx / scale;
+    const sy = -ty / scale;
+    const sw = w / scale;
+    const sh = h / scale;
+    const canvas = document.createElement('canvas');
+    canvas.width = outW; canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, outW, outH);
+    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+  });
+}
+
+/* ---------- Page data ---------- */
 async function loadAll() {
   const [prodRes, homeRes] = await Promise.all([
     fetch('/api/shop-products'),
@@ -94,7 +277,7 @@ async function loadAll() {
   allProducts = await prodRes.json();
   homeContent = await homeRes.json();
 
-  document.getElementById('hero-preview-img').src = homeContent.hero_image_url || '../assets/images/evelle-hero.jpg';
+  loadCropImage(homeContent.hero_image_url || '../assets/images/evelle-hero.jpg');
   document.getElementById('why-heading').value = homeContent.why_heading || '';
   document.getElementById('why-body').value = homeContent.why_body || '';
 
@@ -105,7 +288,7 @@ function renderPickGrid() {
   const grid = document.getElementById('pick-grid');
   grid.innerHTML = '';
   const slots = ['featured_1', 'featured_2', 'featured_3', 'featured_4'];
-  slots.forEach((field, i) => {
+  slots.forEach((field) => {
     const selectedId = homeContent[field];
     const selectedProduct = allProducts.find(p => String(p.id) === String(selectedId));
 
@@ -150,10 +333,9 @@ document.getElementById('hero-upload-btn').addEventListener('click', () => {
 });
 
 document.getElementById('hero-file').addEventListener('change', (e) => {
-  pendingHeroFile = e.target.files[0] || null;
-  if (pendingHeroFile) {
-    document.getElementById('hero-preview-img').src = URL.createObjectURL(pendingHeroFile);
-  }
+  const file = e.target.files[0];
+  if (!file) return;
+  loadCropImage(URL.createObjectURL(file));
 });
 
 async function fetchWithTimeout(url, options, ms) {
@@ -174,18 +356,22 @@ document.getElementById('save-btn').addEventListener('click', async () => {
 
   try {
     let heroUrl = homeContent.hero_image_url;
-    if (pendingHeroFile) {
-      msgEl.textContent = 'Uploading hero image...';
-      const fd = new FormData();
-      fd.append('file', pendingHeroFile);
-      const uploadRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) {
-        msgEl.textContent = uploadData.error || 'Hero upload failed — try again.';
-        msgEl.style.color = 'var(--staff-danger)';
-        return;
+    if (cropLoaded) {
+      msgEl.textContent = 'Rendering crop...';
+      const blob = await renderCropToBlob(1600, 900);
+      if (blob) {
+        msgEl.textContent = 'Uploading hero image...';
+        const fd = new FormData();
+        fd.append('file', new File([blob], 'hero.jpg', { type: 'image/jpeg' }));
+        const uploadRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          msgEl.textContent = uploadData.error || 'Hero upload failed — try again.';
+          msgEl.style.color = 'var(--staff-danger)';
+          return;
+        }
+        heroUrl = uploadData.url;
       }
-      heroUrl = uploadData.url;
     }
 
     msgEl.textContent = 'Saving...';
@@ -209,7 +395,6 @@ document.getElementById('save-btn').addEventListener('click', async () => {
       msgEl.style.color = 'var(--staff-danger)';
       return;
     }
-    pendingHeroFile = null;
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved — homepage updated.';
     await loadAll();
