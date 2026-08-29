@@ -214,7 +214,7 @@
       </label>
     </div>
     <div class="card" style="margin-top:10px; padding:14px 18px;">
-      <label class="field">Jump to item (e.g. EY-0004 or 0004)
+      <label class="field">Jump to item (e.g. EV-0004 or 0004)
         <div class="photo-row">
           <input type="text" id="inv-jump" placeholder="Enter item number…" style="flex:1;" />
           <button type="button" class="btn btn-ghost" id="inv-jump-btn">Go</button>
@@ -428,28 +428,28 @@ function gbp(n) { return "£" + (Number(n) || 0).toFixed(2); }
 // block is untouched; only the persistence layer is rewired.
 
 const ENDPOINTS = {
-  "ey-inventory": "/api/inventory",
-  "ey-sales": "/api/sales",
-  "ey-expenditure": "/api/expenditure",
-  "ey-suppliers": "/api/suppliers",
+  "ev-inventory": "/api/inventory",
+  "ev-sales": "/api/sales",
+  "ev-expenditure": "/api/expenditure",
+  "ev-suppliers": "/api/suppliers",
 };
 
 const FROM_D1 = {
-  "ey-inventory": (r) => ({
+  "ev-inventory": (r) => ({
     id: r.id, sku: r.sku, name: r.name, category: r.category, material: r.material,
     stoneDetail: r.stone_detail, durability: r.durability, quantity: r.quantity,
     cost: r.cost_per_item, price: r.sell_price, reorderAt: r.reorder_at,
     supplier: r.supplier, photo: r.photo_url, notes: r.notes,
   }),
-  "ey-sales": (r) => ({
+  "ev-sales": (r) => ({
     id: r.id, date: r.sale_date, item: r.item_name, sku: r.item_sku, category: r.category,
     quantity: r.quantity, price: r.sale_price, platform: r.platform, account: r.received_via,
   }),
-  "ey-expenditure": (r) => ({
+  "ev-expenditure": (r) => ({
     id: r.id, date: r.exp_date, category: r.category, amount: r.amount,
     notes: r.notes, account: r.paid_from,
   }),
-  "ey-suppliers": (r) => {
+  "ev-suppliers": (r) => {
     let expected = "";
     if (r.date_ordered && r.lead_time_days) {
       const d = new Date(r.date_ordered);
@@ -461,27 +461,27 @@ const FROM_D1 = {
 };
 
 const TO_D1 = {
-  "ey-inventory": (i) => ({
+  "ev-inventory": (i) => ({
     sku: i.sku, name: i.name, category: i.category, material: i.material,
     stone_detail: i.stoneDetail, durability: i.durability, quantity: i.quantity,
     cost_per_item: i.cost, sell_price: i.price, reorder_at: i.reorderAt,
     supplier: i.supplier, photo_url: i.photo, notes: i.notes,
   }),
-  "ey-sales": (s) => ({
+  "ev-sales": (s) => ({
     sale_date: s.date, item_name: s.item, item_sku: s.sku, category: s.category,
     quantity: s.quantity, sale_price: s.price, platform: s.platform, received_via: s.account,
   }),
-  "ey-expenditure": (e) => ({
+  "ev-expenditure": (e) => ({
     exp_date: e.date, category: e.category, amount: e.amount, notes: e.notes, paid_from: e.account,
   }),
-  "ey-suppliers": (s) => ({
+  "ev-suppliers": (s) => ({
     name: s.supplier, date_ordered: s.dateOrdered, lead_time_days: s.leadDays, status: s.status,
   }),
 };
 
 // Remembers what was last loaded from D1, keyed by real D1 id, so saveCollection
 // can diff a full-array save into targeted POST / PATCH / DELETE calls.
-const lastSynced = { "ey-inventory": new Map(), "ey-sales": new Map(), "ey-expenditure": new Map(), "ey-suppliers": new Map() };
+const lastSynced = { "ev-inventory": new Map(), "ev-sales": new Map(), "ev-expenditure": new Map(), "ev-suppliers": new Map() };
 
 async function apiCall(path, opts = {}) {
   const res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
@@ -543,7 +543,7 @@ async function saveCollection(key, items) {
 }
 
 async function loadValue(key) {
-  if (key !== "ey-notes") return "";
+  if (key !== "ev-notes") return "";
   try {
     const data = await apiCall("/api/notes");
     return data.content || "";
@@ -552,7 +552,7 @@ async function loadValue(key) {
   }
 }
 async function saveValue(key, val) {
-  if (key !== "ey-notes") return;
+  if (key !== "ev-notes") return;
   try {
     await apiCall("/api/notes", { method: "POST", body: JSON.stringify({ content: val }) });
   } catch (e) {
@@ -561,9 +561,9 @@ async function saveValue(key, val) {
 }
 
 function nextSku(items) {
-  const nums = items.map(i => (i.sku || "").match(/^EY-(\d+)$/)).filter(Boolean).map(m => parseInt(m[1], 10));
+  const nums = items.map(i => (i.sku || "").match(/^EV-(\d+)$/)).filter(Boolean).map(m => parseInt(m[1], 10));
   const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  return "EY-" + String(next).padStart(4, "0");
+  return "EV-" + String(next).padStart(4, "0");
 }
 
 // ---------- state ----------
@@ -701,7 +701,7 @@ document.getElementById("inv-search").addEventListener("input", renderInventory)
 function jumpToItem() {
   const raw = document.getElementById("inv-jump").value.trim().toUpperCase();
   if (!raw) return;
-  const target = raw.startsWith("EY-") ? raw : "EY-" + raw.padStart(4, "0");
+  const target = raw.startsWith("EV-") ? raw : "EV-" + raw.padStart(4, "0");
   const row = inventory.find(i => i.sku === target);
   if (!row) { alert(`No item found with number ${target}.`); return; }
   document.getElementById("inv-search").value = "";
@@ -806,7 +806,7 @@ function renderInvRow(row) {
 function attachInvRowEvents() {
   document.querySelectorAll(".remove-inv").forEach(b => b.addEventListener("click", async () => {
     inventory = inventory.filter(i => i.id !== b.dataset.id);
-    await saveCollection("ey-inventory", inventory);
+    await saveCollection("ev-inventory", inventory);
     renderInventory(); renderSalePicker(); renderOverview();
   }));
   document.querySelectorAll(".start-edit").forEach(b => b.addEventListener("click", () => {
@@ -851,7 +851,7 @@ function attachInvRowEvents() {
     const idx = inventory.findIndex(i => i.id === b.dataset.id);
     inventory[idx] = { ...inventory[idx], ...editDraft, quantity: Number(editDraft.quantity) || 0 };
     editingInvId = null;
-    await saveCollection("ey-inventory", inventory);
+    await saveCollection("ev-inventory", inventory);
     renderInventory(); renderSalePicker(); renderOverview();
   }));
 }
@@ -900,12 +900,12 @@ document.getElementById("sale-form").addEventListener("submit", async (e) => {
     platform: document.getElementById("sale-platform").value,
     account: document.getElementById("sale-account").value,
   });
-  await saveCollection("ey-sales", sales);
+  await saveCollection("ev-sales", sales);
 
   // auto-deduct stock if matched to an inventory item
   if (invMatch) {
     invMatch.quantity = Math.max(0, (Number(invMatch.quantity) || 0) - qty);
-    await saveCollection("ey-inventory", inventory);
+    await saveCollection("ev-inventory", inventory);
     renderInventory();
   }
 
@@ -949,7 +949,7 @@ function renderSales() {
   totalEl.innerHTML = `Total sales revenue (all time): <strong style="color:var(--ink);">${gbp(total)}</strong>`;
   document.querySelectorAll(".remove-sale").forEach(b => b.addEventListener("click", async () => {
     sales = sales.filter(s => s.id !== b.dataset.id);
-    await saveCollection("ey-sales", sales);
+    await saveCollection("ev-sales", sales);
     renderSales(); renderOverview();
   }));
 }
@@ -1002,13 +1002,13 @@ updateExpStockFieldsVisibility();
 
 // USD -> GBP converter
 const usdRateInput = document.getElementById("usd-rate");
-const savedRate = localStorage.getItem("ey-usd-rate");
+const savedRate = localStorage.getItem("ev-usd-rate");
 if (savedRate) usdRateInput.value = savedRate;
 document.getElementById("usd-convert-btn").addEventListener("click", () => {
   const usd = parseFloat(document.getElementById("usd-amount").value);
   const rate = parseFloat(usdRateInput.value);
   if (!usd || !rate) { alert("Enter both the USD amount and your rate first."); return; }
-  localStorage.setItem("ey-usd-rate", rate);
+  localStorage.setItem("ev-usd-rate", rate);
   document.getElementById("exp-amount").value = (usd * rate).toFixed(2);
 });
 
@@ -1043,7 +1043,7 @@ document.getElementById("exp-form").addEventListener("submit", async (e) => {
       photo: expStockPhotoData,
       sku: nextSku(inventory),
     });
-    await saveCollection("ey-inventory", inventory);
+    await saveCollection("ev-inventory", inventory);
     if (!notes.trim()) notes = `${name} x${quantity}`;
     renderInventory(); renderSalePicker();
   }
@@ -1054,7 +1054,7 @@ document.getElementById("exp-form").addEventListener("submit", async (e) => {
     category, amount, notes,
     account: document.getElementById("exp-account").value,
   });
-  await saveCollection("ey-expenditure", expenditure);
+  await saveCollection("ev-expenditure", expenditure);
   e.target.reset();
   setExpStockPhoto("");
   updateExpStockFieldsVisibility();
@@ -1102,7 +1102,7 @@ function renderExpenditure() {
   `;
   document.querySelectorAll(".remove-exp").forEach(b => b.addEventListener("click", async () => {
     expenditure = expenditure.filter(x => x.id !== b.dataset.id);
-    await saveCollection("ey-expenditure", expenditure);
+    await saveCollection("ev-expenditure", expenditure);
     renderExpenditure(); renderOverview();
   }));
 }
@@ -1124,7 +1124,7 @@ document.getElementById("sup-form").addEventListener("submit", async (e) => {
     id: uid(), supplier,
     dateOrdered, leadDays, expected, status: "Ordered",
   });
-  await saveCollection("ey-suppliers", suppliers);
+  await saveCollection("ev-suppliers", suppliers);
   e.target.reset();
   renderSuppliers();
 });
@@ -1155,20 +1155,20 @@ function renderSuppliers() {
   `;
   document.querySelectorAll(".remove-sup").forEach(b => b.addEventListener("click", async () => {
     suppliers = suppliers.filter(s => s.id !== b.dataset.id);
-    await saveCollection("ey-suppliers", suppliers);
+    await saveCollection("ev-suppliers", suppliers);
     renderSuppliers();
   }));
   document.querySelectorAll(".toggle-status").forEach(b => b.addEventListener("click", async () => {
     const row = suppliers.find(s => s.id === b.dataset.id);
     row.status = row.status === "Ordered" ? "Arrived" : "Ordered";
-    await saveCollection("ey-suppliers", suppliers);
+    await saveCollection("ev-suppliers", suppliers);
     renderSuppliers();
   }));
 }
 
 // ==================== NOTES ====================
 document.getElementById("notes-save").addEventListener("click", async () => {
-  await saveValue("ey-notes", document.getElementById("notes-area").value);
+  await saveValue("ev-notes", document.getElementById("notes-area").value);
   const savedEl = document.getElementById("notes-saved");
   savedEl.classList.remove("hidden");
   setTimeout(() => savedEl.classList.add("hidden"), 1800);
@@ -1178,12 +1178,12 @@ document.getElementById("notes-save").addEventListener("click", async () => {
 (async function init() {
   await loadRemoteData();
   [inventory, suppliers, sales, expenditure] = await Promise.all([
-    loadCollection("ey-inventory"),
-    loadCollection("ey-suppliers"),
-    loadCollection("ey-sales"),
-    loadCollection("ey-expenditure"),
+    loadCollection("ev-inventory"),
+    loadCollection("ev-suppliers"),
+    loadCollection("ev-sales"),
+    loadCollection("ev-expenditure"),
   ]);
-  document.getElementById("notes-area").value = await loadValue("ey-notes");
+  document.getElementById("notes-area").value = await loadValue("ev-notes");
 
   renderOverview();
   renderInventory();

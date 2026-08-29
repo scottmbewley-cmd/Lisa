@@ -1,4 +1,4 @@
-// Exquisitely You — single-file Worker
+// Evelle — single-file Worker
 // Handles /api/* routes and staff-area auth gating, serves everything else
 // as static assets via the ASSETS binding.
 
@@ -17,29 +17,29 @@ async function hashValue(value) {
 
 async function isAuthed(request, env) {
   const cookie = request.headers.get("Cookie") || "";
-  const match = cookie.match(/ey_staff_session=([^;]+)/);
+  const match = cookie.match(/ev_staff_session=([^;]+)/);
   if (!match) return false;
-  const expected = await hashValue(env.STAFF_PASSWORD || "changeme-EY2026");
+  const expected = await hashValue(env.STAFF_PASSWORD || "changeme-EV2026");
   return match[1] === expected;
 }
 
 async function handleLogin(request, env) {
   const body = await request.json().catch(() => ({}));
-  const correct = env.STAFF_PASSWORD || "changeme-EY2026";
+  const correct = env.STAFF_PASSWORD || "changeme-EV2026";
   if ((body.password || "") !== correct) {
     return json({ success: false, error: "Incorrect password" }, 401);
   }
   const sessionValue = await hashValue(correct);
   const headers = new Headers({ "Content-Type": "application/json" });
-  headers.append("Set-Cookie", `ey_staff_session=${sessionValue}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+  headers.append("Set-Cookie", `ev_staff_session=${sessionValue}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
   return new Response(JSON.stringify({ success: true }), { status: 200, headers });
 }
 
 async function nextSku(env) {
-  const { results } = await env.DB.prepare(`SELECT sku FROM inventory WHERE sku LIKE 'EY-%'`).all();
-  const nums = results.map(r => (r.sku.match(/^EY-(\d+)$/) || [])[1]).filter(Boolean).map(Number);
+  const { results } = await env.DB.prepare(`SELECT sku FROM inventory WHERE sku LIKE 'EV-%'`).all();
+  const nums = results.map(r => (r.sku.match(/^EV-(\d+)$/) || [])[1]).filter(Boolean).map(Number);
   const next = nums.length ? Math.max(...nums) + 1 : 1;
-  return "EY-" + String(next).padStart(4, "0");
+  return "EV-" + String(next).padStart(4, "0");
 }
 
 async function handleInventory(request, env, url) {

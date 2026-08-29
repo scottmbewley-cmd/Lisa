@@ -1,4 +1,4 @@
-# Exquisitely You — Website (working title: Lisa)
+# Evelle — Website
 
 Static front end + a single Cloudflare Worker script + D1 database. Built to
 replace the Supabase/Netlify prototype. No build step — plain HTML/CSS/JS.
@@ -31,6 +31,6 @@ Uploaded directly via Cloudflare dashboard → Workers & Pages → Create applic
 
 2. **Set the staff password** — Settings → Variables and Secrets → Add →
    name `STAFF_PASSWORD` → your chosen password. Until this is set, it falls back
-   to `changeme-EY2026` — change this before sharing the login with Lisa.
+   to `changeme-EV2026` — change this before sharing the login with Lisa.
 
 After both, redeploy (or it applies on the next request depending on binding type).
