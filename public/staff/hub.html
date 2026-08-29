@@ -88,6 +88,7 @@
   th { text-align: left; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--steel); padding: 10px 12px; }
   td { padding: 10px 12px; font-size: 13px; vertical-align: middle; border-top: 1px solid var(--line); }
   .table-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; padding: 0; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   .cat-heading { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); margin: 22px 0 8px; }
   .cat-heading .count { color: var(--steel); font-weight: 400; text-transform: none; letter-spacing: 0; }
@@ -741,10 +742,12 @@ function renderInventory() {
   wrap.innerHTML = groups.map(g => `
     <div class="cat-heading">${esc(g.cat)} <span class="count">(${g.rows.length})</span></div>
     <div class="table-card">
-      <table>
-        <thead><tr><th>Photo</th><th>Item</th><th>SKU</th><th>Material</th><th>Stone/Detail</th><th>Durability</th><th>Qty</th><th>Cost</th><th>Price</th><th>Supplier</th><th>Notes</th><th></th></tr></thead>
-        <tbody>${g.rows.map(row => renderInvRow(row)).join("")}</tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Photo</th><th>Item</th><th>SKU</th><th>Material</th><th>Stone/Detail</th><th>Durability</th><th>Qty</th><th>Cost</th><th>Price</th><th>Supplier</th><th>Notes</th><th></th></tr></thead>
+          <tbody>${g.rows.map(row => renderInvRow(row)).join("")}</tbody>
+        </table>
+      </div>
     </div>
   `).join("");
   attachInvRowEvents();
