@@ -629,6 +629,40 @@ async function handleShopConfig(request, env) {
   return json({ error: "Method not allowed" }, 405);
 }
 
+const ORDER_STATUSES = ["paid", "posted", "cancelled"];
+
+async function handleOrders(request, env, url) {
+  if (request.method === "GET") {
+    const id = url.searchParams.get("id");
+    if (id) {
+      const order = await env.DB.prepare(`SELECT * FROM orders WHERE id = ?1`).bind(id).first();
+      if (!order) return json({ error: "Order not found" }, 404);
+      const { results: items } = await env.DB.prepare(`SELECT * FROM order_items WHERE order_id = ?1 ORDER BY id ASC`).bind(id).all();
+      return json({ order, items });
+    }
+    const status = url.searchParams.get("status") || "";
+    let sql = `SELECT o.*, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count FROM orders o`;
+    const binds = [];
+    if (status) { sql += ` WHERE o.status = ?1`; binds.push(status); }
+    sql += ` ORDER BY o.created_at DESC`;
+    const { results } = await env.DB.prepare(sql).bind(...binds).all();
+    return json(results);
+  }
+
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    if (!b.status || !ORDER_STATUSES.includes(b.status)) {
+      return json({ error: "status must be one of: " + ORDER_STATUSES.join(", ") }, 400);
+    }
+    await env.DB.prepare(`UPDATE orders SET status = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`).bind(b.status, id).run();
+    return json({ success: true });
+  }
+
+  return json({ error: "Method not allowed" }, 405);
+}
+
 async function handleNotes(request, env) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM notes ORDER BY updated_at DESC LIMIT 1`).all();
@@ -687,6 +721,7 @@ export default {
       if (path === "/api/expenditure") return handleExpenditure(request, env, url);
       if (path === "/api/suppliers") return handleSuppliers(request, env, url);
       if (path === "/api/notes") return handleNotes(request, env);
+      if (path === "/api/orders") return handleOrders(request, env, url);
       if (path === "/api/shop-products") return handleShopProducts(request, env, url);
       if (path === "/api/shop-unpublish") return handleShopUnpublish(request, env);
       if (path === "/api/shop-config") return handleShopConfig(request, env);
