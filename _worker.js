@@ -359,9 +359,14 @@ async function renderShopPage(request, env) {
     : { results: [] };
 
   const cardsHtml = results.length
-    ? results.map(p => `
-      <div class="product-card">
-        <div class="product-image"><img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" /></div>
+    ? results.map(p => {
+        const soldOut = Number(p.quantity) <= 0;
+        return `
+      <div class="product-card${soldOut ? ' sold-out' : ''}">
+        <div class="product-image">
+          <img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" />
+          ${soldOut ? '<span class="sold-out-badge">Sold Out</span>' : ''}
+        </div>
         <div class="product-info">
           <span class="eyebrow" style="font-size:0.85rem;">${escapeHtml(p.category)}</span>
           <h3>${escapeHtml(p.name)}</h3>
@@ -369,7 +374,8 @@ async function renderShopPage(request, env) {
           <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
         </div>
         <div class="product-desc">${escapeHtml(p.notes)}</div>
-      </div>`).join("")
+      </div>`;
+      }).join("")
     : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon — check back shortly.</p>`;
 
   const template = await (await env.ASSETS.fetch(new Request(new URL("/shop.html", request.url)))).text();
@@ -394,16 +400,22 @@ async function renderHomePage(request, env) {
   }
 
   const cardsHtml = products.length
-    ? products.map(p => `
-      <div class="product-card">
-        <div class="product-image"><img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" /></div>
+    ? products.map(p => {
+        const soldOut = Number(p.quantity) <= 0;
+        return `
+      <div class="product-card${soldOut ? ' sold-out' : ''}">
+        <div class="product-image">
+          <img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" />
+          ${soldOut ? '<span class="sold-out-badge">Sold Out</span>' : ''}
+        </div>
         <div class="product-info">
           <h3>${escapeHtml(p.name)}</h3>
           <p class="product-price">\u00a3${Number(p.sell_price || 0).toFixed(2)}</p>
           <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
         </div>
         <div class="product-desc">${escapeHtml(p.notes)}</div>
-      </div>`).join("")
+      </div>`;
+      }).join("")
     : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon \u2014 check back shortly.</p>`;
 
   const template = await (await env.ASSETS.fetch(new Request(new URL("/index.html", request.url)))).text();
