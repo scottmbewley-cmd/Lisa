@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Accounting — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .period-row { display: flex; gap: 10px; margin: 20px 0 22px; flex-wrap: wrap; align-items: center; }
+  .period-btn {
+    background: none; border: 1px solid var(--staff-line); cursor: pointer;
+    padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; color: var(--staff-white-dim);
+    font-family: inherit;
+  }
+  .period-btn.active { border-color: var(--staff-gold); color: var(--staff-gold); background: rgba(212,175,106,0.08); }
+  .custom-range-row { display: none; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .custom-range-row.open { display: flex; }
+  .custom-range-row .staff-field { margin-bottom: 0; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin: 18px 0; }
+  .stat-tile { background: var(--staff-card); border: 1px solid var(--staff-line); border-radius: var(--staff-radius); padding: 18px; }
+  .stat-tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); }
+  .stat-tile .value { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: var(--staff-white); margin-top: 6px; }
+  .stat-tile.gold .value { color: var(--staff-gold); }
+  .stat-tile.ok .value { color: var(--staff-ok); }
+  .stat-tile.danger .value { color: var(--staff-danger); }
+
+  .cashflow-note {
+    border: 1px dashed var(--staff-line); border-radius: var(--staff-radius);
+    padding: 14px 16px; font-size: 0.85rem; color: var(--staff-white-dim); margin: 6px 0 18px;
+  }
+  .cashflow-note strong { color: var(--staff-white); }
+
+  .entry-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; }
+  #entry-status-msg { font-size: 0.85rem; min-height: 20px; margin: 8px 0; }
+  .recent-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--staff-line); font-size: 0.88rem; gap: 12px; }
+  .recent-row:first-of-type { border-top: none; }
+  .recent-row .amt { white-space: nowrap; font-weight: 600; }
+  .recent-row .tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--staff-white-dim); }
+  .recent-row .tag.auto { color: var(--staff-gold); }
+
+  @media print {
+    body.staff-body > *:not(#print-area) { display: none !important; }
+    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
+    #print-area th { background: #eee; }
+    #print-area .total-row td { background: #f5f5f5; font-weight: 700; }
+  }
+  .print-only { display: none; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Accounting · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Accounting</h1>
+  <p class="staff-muted">Revenue, profit, and expenditure for a period. Gross Profit is Revenue minus the cost of what actually sold — buying stock is a separate cash-flow figure, shown on its own below, never subtracted from profit directly.</p>
+
+  <div class="period-row" id="period-buttons">
+    <button class="period-btn active" data-period="month">This Month</button>
+    <button class="period-btn" data-period="quarter">This Quarter</button>
+    <button class="period-btn" data-period="year">This Year</button>
+    <button class="period-btn" data-period="custom">Custom Range</button>
+  </div>
+  <div class="custom-range-row" id="custom-range-row">
+    <div class="staff-field"><label>From</label><input type="date" id="custom-from" /></div>
+    <div class="staff-field"><label>To</label><input type="date" id="custom-to" /></div>
+    <button class="staff-btn" id="custom-apply-btn" style="padding:11px 22px;">Apply</button>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
+      <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+      <button class="staff-btn outline" id="print-report-btn" type="button" style="padding:8px 16px;">Print Report</button>
+    </div>
+    <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
+
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="label">Revenue</div><div class="value" id="stat-revenue">£0.00</div></div>
+      <div class="stat-tile gold"><div class="label">Gross Profit</div><div class="value" id="stat-gross">£0.00</div></div>
+      <div class="stat-tile ok"><div class="label">Net Profit</div><div class="value" id="stat-net">£0.00</div></div>
+    </div>
+
+    <div class="cashflow-note">
+      <strong>Cash spent on stock this period: <span id="stat-stock-cash">£0.00</span></strong> — money that left the business buying stock. This is a cash-flow fact, not part of profit: it only affects profit once that stock actually sells (via Gross Profit, above), which can happen in a different period entirely.
+    </div>
+
+    <h4 class="staff-serif" style="margin:20px 0 10px;">Expenditure by Category</h4>
+    <div id="category-table-wrap"></div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Log a Cost</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">For anything Inventory doesn't already know about — packaging, subscriptions, office essentials, and the like. Stock costs log themselves automatically from Inventory.</p>
+    <div class="entry-form-row">
+      <div class="staff-field"><label>Date</label><input type="date" id="e-date" /></div>
+      <div class="staff-field"><label>Category</label>
+        <select id="e-category">
+          <option value="">— select —</option>
+          <option>Packaging</option><option>Subscriptions</option><option>Office</option><option>Marketing</option><option>Fees</option><option>Other</option>
+        </select>
+      </div>
+      <div class="staff-field"><label>Amount (£)</label><input type="number" min="0" step="0.01" id="e-amount" /></div>
+      <div class="staff-field"><label>Paid from</label><input type="text" id="e-paid-from" placeholder="e.g. Business account" /></div>
+    </div>
+    <div class="staff-field"><label>Notes</label><input type="text" id="e-notes" placeholder="What was this for?" /></div>
+    <div id="entry-status-msg"></div>
+    <button class="staff-btn" id="save-entry-btn">Save Entry</button>
+
+    <h4 class="staff-serif" style="margin:26px 0 10px;">Recent Entries</h4>
+    <div id="recent-entries-wrap"><p class="staff-muted" style="font-size:0.85rem;">Loading…</p></div>
+  </div>
+</main>
+
+<div id="print-area" class="print-only">
+  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Accounting Report</h2>
+  <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
+  <div id="print-body-wrap"></div>
+</div>
+
+<script>
+let activePeriod = 'month';
+let currentFrom = '', currentTo = '';
+
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function money(n) { return '£' + Number(n || 0).toFixed(2); }
+// Deliberately NOT toISOString() — that converts to UTC, which shifts the
+// date backward by a day for any UK visitor during BST (e.g. local
+// midnight Aug 1 becomes July 31 in UTC). Build the string from the local
+// getters instead so period boundaries always match the browser's own
+// calendar date.
+function toISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+function todayISO() { return toISO(new Date()); }
+
+function periodRange(period) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if (period === 'month') {
+    return [toISO(new Date(y, m, 1)), toISO(new Date(y, m + 1, 0))];
+  }
+  if (period === 'quarter') {
+    const qStartMonth = Math.floor(m / 3) * 3;
+    return [toISO(new Date(y, qStartMonth, 1)), toISO(new Date(y, qStartMonth + 3, 0))];
+  }
+  if (period === 'year') {
+    return [toISO(new Date(y, 0, 1)), toISO(new Date(y, 11, 31))];
+  }
+  return [currentFrom, currentTo];
+}
+
+function periodLabel(period, from, to) {
+  if (period === 'month') return new Date(from).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  if (period === 'quarter') { const q = Math.floor(new Date(from).getMonth() / 3) + 1; return 'Q' + q + ' ' + new Date(from).getFullYear(); }
+  if (period === 'year') return String(new Date(from).getFullYear());
+  return from + ' to ' + to;
+}
+
+document.getElementById('period-buttons').addEventListener('click', (e) => {
+  const btn = e.target.closest('.period-btn');
+  if (!btn) return;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b === btn));
+  activePeriod = btn.dataset.period;
+  document.getElementById('custom-range-row').classList.toggle('open', activePeriod === 'custom');
+  if (activePeriod !== 'custom') {
+    const [from, to] = periodRange(activePeriod);
+    runReport(from, to);
+  }
+});
+
+document.getElementById('custom-apply-btn').addEventListener('click', () => {
+  const from = document.getElementById('custom-from').value;
+  const to = document.getElementById('custom-to').value;
+  if (!from || !to) { document.getElementById('report-status').textContent = 'Pick both a from and to date.'; return; }
+  if (from > to) { document.getElementById('report-status').textContent = '"From" must be before "To".'; return; }
+  runReport(from, to);
+});
+
+async function runReport(from, to) {
+  currentFrom = from; currentTo = to;
+  const statusEl = document.getElementById('report-status');
+  statusEl.textContent = 'Loading…';
+  document.getElementById('report-period-label').textContent = periodLabel(activePeriod, from, to);
+  try {
+    const res = await fetch('/api/accounting-report?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+    const data = await res.json();
+    if (!res.ok) { statusEl.textContent = data.error || 'Could not load the report.'; return; }
+    statusEl.textContent = data.order_count + ' order' + (data.order_count === 1 ? '' : 's') + ' in this period.';
+
+    document.getElementById('stat-revenue').textContent = money(data.revenue);
+    document.getElementById('stat-gross').textContent = money(data.gross_profit);
+    document.getElementById('stat-net').textContent = money(data.net_profit);
+    document.getElementById('stat-stock-cash').textContent = money(data.stock_cash_spent);
+
+    const cats = data.expense_by_category || [];
+    const catTableHtml = cats.length
+      ? '<table class="staff-table"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
+          cats.map(c => '<tr' + (c.category === 'Stock' ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (c.category === 'Stock' ? ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow, not in Net Profit)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>').join('') +
+        '</tbody></table>'
+      : '<p class="staff-muted" style="font-size:0.85rem;">No expenditure logged in this period.</p>';
+    document.getElementById('category-table-wrap').innerHTML = catTableHtml;
+
+    document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
+    document.getElementById('print-body-wrap').innerHTML =
+      '<table><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>' +
+        '<tr><td>Revenue</td><td>' + money(data.revenue) + '</td></tr>' +
+        '<tr><td>Cost of Goods Sold</td><td>' + money(data.cogs) + '</td></tr>' +
+        '<tr class="total-row"><td>Gross Profit</td><td>' + money(data.gross_profit) + '</td></tr>' +
+        '<tr><td>Operating Expenses</td><td>' + money(data.operating_expenses) + '</td></tr>' +
+        '<tr class="total-row"><td>Net Profit</td><td>' + money(data.net_profit) + '</td></tr>' +
+        '<tr><td>Cash Spent on Stock (not in profit above)</td><td>' + money(data.stock_cash_spent) + '</td></tr>' +
+      '</tbody></table>' + catTableHtml;
+  } catch (e) {
+    statusEl.textContent = 'Could not load the report — check your connection and try again.';
+  }
+}
+
+document.getElementById('print-report-btn').addEventListener('click', () => window.print());
+
+async function loadRecentEntries() {
+  const wrap = document.getElementById('recent-entries-wrap');
+  try {
+    const res = await fetch('/api/expense-entries');
+    const rows = await res.json();
+    if (!rows.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Nothing logged yet.</p>'; return; }
+    wrap.innerHTML = rows.slice(0, 20).map(r => {
+      const isAuto = r.linked_inventory_id !== null;
+      return '<div class="recent-row" data-id="' + r.id + '">' +
+        '<div><strong>' + esc(r.category) + '</strong> <span class="tag' + (isAuto ? ' auto' : '') + '">' + (isAuto ? 'auto — stock' : 'manual') + '</span><br>' +
+        '<span class="staff-muted">' + esc(r.exp_date) + (r.notes ? ' — ' + esc(r.notes) : '') + '</span></div>' +
+        '<div style="text-align:right;"><span class="amt">' + money(r.amount) + '</span><br>' +
+        (isAuto ? '' : '<button class="staff-del-btn del-entry-btn" data-id="' + r.id + '">Delete</button>') +
+        '</div></div>';
+    }).join('');
+    wrap.querySelectorAll('.del-entry-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this entry?')) return;
+        await fetch('/api/expense-entries?id=' + encodeURIComponent(btn.dataset.id), { method: 'DELETE' });
+        loadRecentEntries();
+        if (currentFrom && currentTo) runReport(currentFrom, currentTo);
+      });
+    });
+  } catch (e) {
+    wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load — check your connection and reload.</p>';
+  }
+}
+
+document.getElementById('e-date').value = todayISO();
+document.getElementById('save-entry-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('entry-status-msg');
+  const category = document.getElementById('e-category').value;
+  const amount = document.getElementById('e-amount').value;
+  msgEl.style.color = '';
+  if (!category) { msgEl.textContent = 'Pick a category.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  if (!amount || Number(amount) <= 0) { msgEl.textContent = 'Enter an amount greater than £0.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+
+  const payload = {
+    exp_date: document.getElementById('e-date').value || todayISO(),
+    category, amount: Number(amount),
+    paid_from: document.getElementById('e-paid-from').value.trim(),
+    notes: document.getElementById('e-notes').value.trim(),
+  };
+  const btn = document.getElementById('save-entry-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/expense-entries', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved.';
+    document.getElementById('e-category').value = '';
+    document.getElementById('e-amount').value = '';
+    document.getElementById('e-paid-from').value = '';
+    document.getElementById('e-notes').value = '';
+    document.getElementById('e-date').value = todayISO();
+    loadRecentEntries();
+    if (currentFrom && currentTo) runReport(currentFrom, currentTo);
+  } catch (e) {
+    msgEl.textContent = 'Something went wrong: ' + e.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+const [initFrom, initTo] = periodRange('month');
+runReport(initFrom, initTo);
+loadRecentEntries();
+</script>
+</body>
+</html>

@@ -407,6 +407,106 @@ function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Fresh routes for the Accounting tool — deliberately NOT /api/expenditure,
+// which is dead code blocked by HUB_DISABLED and tied to the old disabled
+// Business Hub. These reuse the existing `expenditure` table.
+//
+// "Stock" is reserved for Task 3's automatic logging (linked_inventory_id
+// set, category always 'Stock'). It's excluded here on purpose so a manual
+// entry can never masquerade as an auto-generated one — linked_inventory_id
+// IS NULL is what proves an entry came from this form.
+const EXPENSE_CATEGORIES = ["Packaging", "Subscriptions", "Office", "Marketing", "Fees", "Other"];
+
+async function handleExpenseEntries(request, env, url) {
+  if (request.method === "GET") {
+    const { results } = await env.DB.prepare(`SELECT * FROM expenditure ORDER BY exp_date DESC, created_at DESC LIMIT 100`).all();
+    return json(results);
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    if (!b.category || !EXPENSE_CATEGORIES.includes(b.category)) {
+      return json({ error: "category must be one of: " + EXPENSE_CATEGORIES.join(", ") }, 400);
+    }
+    const amount = Number(b.amount) || 0;
+    if (amount <= 0) return json({ error: "amount must be greater than 0" }, 400);
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_inventory_id)
+       VALUES (?1,?2,?3,?4,?5,NULL)`
+    ).bind(
+      b.exp_date || new Date().toISOString().slice(0, 10),
+      b.category, b.paid_from || "", amount, b.notes || ""
+    ).run();
+    return json({ success: true, id: insertRes.meta.last_row_id });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const row = await env.DB.prepare(`SELECT linked_inventory_id FROM expenditure WHERE id = ?1`).bind(id).first();
+    if (!row) return json({ error: "Not found" }, 404);
+    if (row.linked_inventory_id !== null) {
+      return json({ error: "That's an automatic stock entry — delete or correct it from Inventory instead." }, 400);
+    }
+    await env.DB.prepare(`DELETE FROM expenditure WHERE id = ?1`).bind(id).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
+// Revenue: everything actually received (item subtotal + shipping) for
+// non-cancelled orders in the period.
+//
+// COGS (cost of goods sold): the snapshotted line_cost of items sold in
+// this period — not the same thing as money spent buying stock in this
+// period, which is a cash-flow fact and can fall in a completely
+// different period. Gross Profit = Revenue - COGS.
+//
+// Stock cash spent is reported as its own figure and NEVER subtracted
+// from profit directly — it already flows into Gross Profit later, at
+// whatever point that stock actually sells, via COGS. Subtracting it here
+// too would double-count it.
+//
+// Net Profit = Gross Profit - operating expenses, where "operating
+// expenses" is every expenditure category EXCEPT 'Stock'.
+async function handleAccountingReport(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  if (!from || !to) return json({ error: "from and to (YYYY-MM-DD) are required" }, 400);
+
+  const revRow = await env.DB.prepare(
+    `SELECT COALESCE(SUM(total),0) as revenue, COUNT(*) as order_count
+     FROM orders WHERE status != 'cancelled' AND date(created_at) BETWEEN ?1 AND ?2`
+  ).bind(from, to).first();
+
+  const cogsRow = await env.DB.prepare(
+    `SELECT COALESCE(SUM(oi.line_cost),0) as cogs
+     FROM order_items oi JOIN orders o ON o.id = oi.order_id
+     WHERE o.status != 'cancelled' AND date(o.created_at) BETWEEN ?1 AND ?2`
+  ).bind(from, to).first();
+
+  const { results: byCategory } = await env.DB.prepare(
+    `SELECT COALESCE(category,'(none)') as category, COALESCE(SUM(amount),0) as amount
+     FROM expenditure WHERE exp_date BETWEEN ?1 AND ?2
+     GROUP BY category ORDER BY amount DESC`
+  ).bind(from, to).all();
+
+  const stockRow = byCategory.find(r => r.category === "Stock");
+  const stockCashSpent = stockRow ? Number(stockRow.amount) : 0;
+  const operatingExpenses = byCategory.filter(r => r.category !== "Stock").reduce((sum, r) => sum + Number(r.amount), 0);
+
+  const revenue = Number(revRow.revenue) || 0;
+  const cogs = Number(cogsRow.cogs) || 0;
+  const grossProfit = revenue - cogs;
+  const netProfit = grossProfit - operatingExpenses;
+
+  return json({
+    from, to,
+    revenue, order_count: revRow.order_count, cogs, gross_profit: grossProfit,
+    operating_expenses: operatingExpenses, net_profit: netProfit, stock_cash_spent: stockCashSpent,
+    expense_by_category: byCategory.map(r => ({ category: r.category, amount: Number(r.amount) })),
+  });
+}
+
 async function getActiveLibraries(env) {
   const { results } = await env.DB.prepare(`SELECT active_libraries FROM shop_config WHERE id = 1`).all();
   const raw = (results[0] && results[0].active_libraries) || "Ring,Bracelet,Necklace,Earring,Anklet";
@@ -1079,6 +1179,8 @@ export default {
       if (path === "/api/suppliers") return handleSuppliers(request, env, url);
       if (path === "/api/notes") return handleNotes(request, env);
       if (path === "/api/orders") return handleOrders(request, env, url);
+      if (path === "/api/expense-entries") return handleExpenseEntries(request, env, url);
+      if (path === "/api/accounting-report") return handleAccountingReport(request, env, url);
       if (path === "/api/shop-products") return handleShopProducts(request, env, url);
       if (path === "/api/shop-unpublish") return handleShopUnpublish(request, env);
       if (path === "/api/shop-config") return handleShopConfig(request, env);
