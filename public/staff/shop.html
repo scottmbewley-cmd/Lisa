@@ -55,9 +55,9 @@
   .slot-info .p { font-size: 0.7rem; color: var(--staff-gold); }
   .slot-info .s { font-size: 0.64rem; color: var(--staff-white-dim); display: block; }
   .slot-remove {
-    position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
-    background: rgba(0,0,0,0.6); color: var(--staff-white); border: none; cursor: pointer;
-    font-size: 0.75rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 4px; right: 4px; padding: 3px 8px; border-radius: 10px;
+    background: rgba(0,0,0,0.65); color: var(--staff-white); border: none; cursor: pointer;
+    font-size: 0.62rem; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.03em;
   }
   .slot.drag-over { border-color: var(--staff-gold); background: rgba(212,175,106,0.12); }
 </style>
@@ -179,7 +179,7 @@ function renderGrids() {
         slot.draggable = true;
         slot.dataset.id = p.id;
         slot.innerHTML =
-          '<button class="slot-remove" data-id="' + p.id + '">&times;</button>' +
+          '<button class="slot-remove" data-id="' + p.id + '">Remove from shop</button>' +
           '<img src="' + (p.image_url || '') + '" alt="' + p.name + '" onerror="this.style.display=\'none\'">' +
           '<div class="slot-info"><span class="n">' + p.name + '</span><span class="p">' + p.price + '</span><span class="s">' + p.sku + '</span></div>';
         slot.addEventListener('dragstart', onDragStart);
