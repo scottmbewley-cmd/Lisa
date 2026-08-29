@@ -4,7 +4,7 @@
 
 // Kill-switch: Business Hub is temporarily taken offline while a replacement
 // is built. Flip to false and redeploy to restore access.
-const HUB_DISABLED = true;
+const HUB_DISABLED = false;
 const HUB_API_ROUTES = new Set(["/api/inventory", "/api/sales", "/api/expenditure", "/api/suppliers", "/api/notes"]);
 
 function json(data, status = 200) {
