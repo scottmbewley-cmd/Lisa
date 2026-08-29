@@ -98,6 +98,18 @@
     </div>
   </div>
 
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" style="margin-top:0;">Stock report</h3>
+    <p class="staff-muted" style="font-size:0.85rem; margin-top:-6px;">Pick one, several, or all — see total remaining stock and value at a glance.</p>
+    <div id="report-checks" style="display:flex; gap:16px; flex-wrap:wrap; margin:14px 0;"></div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="staff-btn outline" id="report-all-btn" type="button" style="padding:8px 16px;">Select all</button>
+      <button class="staff-btn outline" id="report-none-btn" type="button" style="padding:8px 16px;">Select none</button>
+      <button class="staff-btn" id="report-run-btn" type="button">Run report</button>
+    </div>
+    <div id="report-results" style="margin-top:16px;"></div>
+  </div>
+
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
     <h3 class="staff-serif" style="margin-top:0;">Find an item</h3>
     <div class="search-row">
@@ -375,6 +387,57 @@ async function runSearch() {
 document.getElementById('search-btn').addEventListener('click', runSearch);
 document.getElementById('s-query').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
 document.getElementById('s-category').addEventListener('change', runSearch);
+
+const REPORT_CATS = ['Ring','Bracelet','Necklace','Earring','Anklet','Other'];
+const checksWrap = document.getElementById('report-checks');
+REPORT_CATS.forEach(function (cat) {
+  const id = 'rc-' + cat;
+  const label = document.createElement('label');
+  label.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:0.88rem; cursor:pointer;';
+  label.innerHTML = '<input type="checkbox" id="' + id + '" checked style="width:auto;"> ' + cat;
+  checksWrap.appendChild(label);
+});
+
+function selectedReportCats() {
+  return REPORT_CATS.filter(function (cat) { return document.getElementById('rc-' + cat).checked; });
+}
+document.getElementById('report-all-btn').addEventListener('click', function () {
+  REPORT_CATS.forEach(function (cat) { document.getElementById('rc-' + cat).checked = true; });
+});
+document.getElementById('report-none-btn').addEventListener('click', function () {
+  REPORT_CATS.forEach(function (cat) { document.getElementById('rc-' + cat).checked = false; });
+});
+
+async function runReport() {
+  const wrap = document.getElementById('report-results');
+  const cats = selectedReportCats();
+  if (!cats.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Tick at least one category.</p>'; return; }
+  wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Running report...</p>';
+  try {
+    const res = await fetch('/api/inv-report?categories=' + encodeURIComponent(cats.join(',')));
+    const rows = await res.json();
+    const totalItems = rows.reduce(function (s, r) { return s + r.items; }, 0);
+    const totalQty = rows.reduce(function (s, r) { return s + r.total_qty; }, 0);
+    const totalValue = rows.reduce(function (s, r) { return s + r.total_value; }, 0);
+    const totalLow = rows.reduce(function (s, r) { return s + r.low_count; }, 0);
+    wrap.innerHTML = '' +
+      '<table class="staff-table">' +
+        '<thead><tr><th>Category</th><th>Items</th><th>Total stock</th><th>Stock value</th><th>Low stock</th></tr></thead>' +
+        '<tbody>' +
+          rows.map(function (r) {
+            return '<tr><td>' + esc(r.category) + '</td><td>' + r.items + '</td><td>' + r.total_qty + '</td><td>\u00a3' + Number(r.total_value).toFixed(2) + '</td><td' + (r.low_count > 0 ? ' style="color:var(--staff-danger);"' : '') + '>' + r.low_count + '</td></tr>';
+          }).join('') +
+          (rows.length > 1
+            ? '<tr style="font-weight:700; border-top:2px solid var(--staff-line);"><td>Total</td><td>' + totalItems + '</td><td>' + totalQty + '</td><td>\u00a3' + totalValue.toFixed(2) + '</td><td' + (totalLow > 0 ? ' style="color:var(--staff-danger);"' : '') + '>' + totalLow + '</td></tr>'
+            : '') +
+        '</tbody>' +
+      '</table>';
+  } catch (e) {
+    wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load the report — check your connection and try again.</p>';
+  }
+}
+document.getElementById('report-run-btn').addEventListener('click', runReport);
+runReport();
 
 loadLowStock();
 </script>

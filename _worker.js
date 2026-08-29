@@ -101,6 +101,27 @@ async function handleInventory(request, env, url) {
   return json({ error: "Method not allowed" }, 405);
 }
 
+async function handleInvReport(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+  const raw = (url.searchParams.get("categories") || "").split(",").map(s => s.trim()).filter(Boolean);
+  const cats = raw.length ? raw.filter(c => allCats.includes(c)) : allCats;
+  if (!cats.length) return json([]);
+  const placeholders = cats.map((_, i) => `?${i + 1}`).join(",");
+  const { results } = await env.DB.prepare(
+    `SELECT category,
+            COUNT(*) as items,
+            COALESCE(SUM(quantity),0) as total_qty,
+            COALESCE(SUM(quantity * sell_price),0) as total_value,
+            SUM(CASE WHEN quantity <= COALESCE(reorder_at,2) THEN 1 ELSE 0 END) as low_count
+     FROM inventory WHERE category IN (${placeholders}) GROUP BY category`
+  ).bind(...cats).all();
+  const byCategory = {};
+  results.forEach(r => { byCategory[r.category] = r; });
+  const rows = cats.map(c => byCategory[c] || { category: c, items: 0, total_qty: 0, total_value: 0, low_count: 0 });
+  return json(rows);
+}
+
 async function handleInvSearch(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const category = url.searchParams.get("category") || "";
@@ -635,6 +656,7 @@ export default {
       }
       if (path === "/api/inventory") return handleInventory(request, env, url);
       if (path === "/api/inv-search") return handleInvSearch(request, env, url);
+      if (path === "/api/inv-report") return handleInvReport(request, env, url);
       if (path === "/api/inv-lowstock") return handleInvLowStock(request, env);
       if (path === "/api/inv-items") return handleInvItems(request, env, url);
       if (path === "/api/sales") return handleSales(request, env, url);
