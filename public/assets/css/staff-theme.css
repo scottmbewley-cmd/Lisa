@@ -176,6 +176,10 @@ body.staff-body {
   outline: 1.5px solid var(--staff-gold);
   outline-offset: 1px;
 }
+.staff-field select option {
+  background: var(--staff-card);
+  color: var(--staff-white);
+}
 
 .staff-muted { color: var(--staff-white-dim); }
 

@@ -69,6 +69,18 @@
       <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
       <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
       <div class="staff-field"><label>Reorder at</label><input type="number" min="0" id="f-reorder" value="2" /></div>
+      <div class="staff-field full"><label>Paid in</label>
+        <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+          <select id="f-currency" style="max-width:150px;">
+            <option value="GBP">£ Pounds</option>
+            <option value="USD">$ Dollars</option>
+          </select>
+          <div id="usd-fields" style="display:none; gap:10px; align-items:end; flex-wrap:wrap;">
+            <div class="staff-field" style="margin-bottom:0;"><label>Amount ($)</label><input type="number" min="0" step="0.01" id="f-usd-amount" style="width:110px;" /></div>
+            <div class="staff-field" style="margin-bottom:0;"><label>Rate (£ per $1)</label><input type="number" min="0" step="0.0001" id="f-usd-rate" value="0.79" style="width:110px;" /></div>
+          </div>
+        </div>
+      </div>
       <div class="staff-field"><label>Cost per item (£)</label><input type="number" min="0" step="0.01" id="f-cost" /></div>
       <div class="staff-field"><label>Sell price (£)</label><input type="number" min="0" step="0.01" id="f-price" /></div>
       <div class="staff-field full"><label>Photo</label>
@@ -164,6 +176,24 @@ document.getElementById('f-photo-file').addEventListener('change', (e) => {
   setPhotoPreview(URL.createObjectURL(file));
 });
 
+const savedRate = localStorage.getItem('inv-usd-rate');
+if (savedRate) document.getElementById('f-usd-rate').value = savedRate;
+function convertUsd() {
+  const usd = parseFloat(document.getElementById('f-usd-amount').value);
+  const rate = parseFloat(document.getElementById('f-usd-rate').value);
+  if (usd && rate) {
+    document.getElementById('f-cost').value = (usd * rate).toFixed(2);
+    localStorage.setItem('inv-usd-rate', rate);
+  }
+}
+document.getElementById('f-currency').addEventListener('change', () => {
+  const isUsd = document.getElementById('f-currency').value === 'USD';
+  document.getElementById('usd-fields').style.display = isUsd ? 'flex' : 'none';
+  if (isUsd) convertUsd();
+});
+document.getElementById('f-usd-amount').addEventListener('input', convertUsd);
+document.getElementById('f-usd-rate').addEventListener('input', convertUsd);
+
 function resetForm() {
   editingId = null;
   pendingPhotoFile = null;
@@ -174,6 +204,9 @@ function resetForm() {
   document.getElementById('f-reorder').value = 2;
   document.getElementById('f-cost').value = '';
   document.getElementById('f-price').value = '';
+  document.getElementById('f-currency').value = 'GBP';
+  document.getElementById('usd-fields').style.display = 'none';
+  document.getElementById('f-usd-amount').value = '';
   document.getElementById('form-title').textContent = 'Add an item';
   document.getElementById('save-btn').textContent = 'Add item';
   document.getElementById('cancel-edit-btn').style.display = 'none';
@@ -190,6 +223,8 @@ function openForEdit(row) {
   document.getElementById('f-reorder').value = (row.reorder_at === null || row.reorder_at === undefined) ? 2 : row.reorder_at;
   document.getElementById('f-cost').value = row.cost_per_item || '';
   document.getElementById('f-price').value = row.sell_price || '';
+  document.getElementById('f-currency').value = 'GBP';
+  document.getElementById('usd-fields').style.display = 'none';
   setPhotoPreview(row.photo_url || '');
   document.getElementById('form-title').textContent = 'Editing ' + row.sku;
   document.getElementById('save-btn').textContent = 'Save changes';
