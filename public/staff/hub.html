@@ -805,12 +805,12 @@ function renderInvRow(row) {
 
 function attachInvRowEvents() {
   document.querySelectorAll(".remove-inv").forEach(b => b.addEventListener("click", async () => {
-    inventory = inventory.filter(i => i.id !== b.dataset.id);
+    inventory = inventory.filter(i => String(i.id) !== b.dataset.id);
     await saveCollection("ev-inventory", inventory);
     renderInventory(); renderSalePicker(); renderOverview();
   }));
   document.querySelectorAll(".start-edit").forEach(b => b.addEventListener("click", () => {
-    const row = inventory.find(i => i.id === b.dataset.id);
+    const row = inventory.find(i => String(i.id) === b.dataset.id);
     editingInvId = row.id; editDraft = { ...row };
     renderInventory();
   }));
@@ -848,7 +848,7 @@ function attachInvRowEvents() {
     reader.readAsDataURL(file);
   }));
   document.querySelectorAll(".save-edit").forEach(b => b.addEventListener("click", async () => {
-    const idx = inventory.findIndex(i => i.id === b.dataset.id);
+    const idx = inventory.findIndex(i => String(i.id) === b.dataset.id);
     inventory[idx] = { ...inventory[idx], ...editDraft, quantity: Number(editDraft.quantity) || 0 };
     editingInvId = null;
     await saveCollection("ev-inventory", inventory);
@@ -948,7 +948,7 @@ function renderSales() {
   const total = sales.reduce((sum, r) => sum + (Number(r.price) || 0) * (Number(r.quantity) || 0), 0);
   totalEl.innerHTML = `Total sales revenue (all time): <strong style="color:var(--ink);">${gbp(total)}</strong>`;
   document.querySelectorAll(".remove-sale").forEach(b => b.addEventListener("click", async () => {
-    sales = sales.filter(s => s.id !== b.dataset.id);
+    sales = sales.filter(s => String(s.id) !== b.dataset.id);
     await saveCollection("ev-sales", sales);
     renderSales(); renderOverview();
   }));
@@ -1101,7 +1101,7 @@ function renderExpenditure() {
     </div>
   `;
   document.querySelectorAll(".remove-exp").forEach(b => b.addEventListener("click", async () => {
-    expenditure = expenditure.filter(x => x.id !== b.dataset.id);
+    expenditure = expenditure.filter(x => String(x.id) !== b.dataset.id);
     await saveCollection("ev-expenditure", expenditure);
     renderExpenditure(); renderOverview();
   }));
@@ -1154,12 +1154,12 @@ function renderSuppliers() {
     </div>
   `;
   document.querySelectorAll(".remove-sup").forEach(b => b.addEventListener("click", async () => {
-    suppliers = suppliers.filter(s => s.id !== b.dataset.id);
+    suppliers = suppliers.filter(s => String(s.id) !== b.dataset.id);
     await saveCollection("ev-suppliers", suppliers);
     renderSuppliers();
   }));
   document.querySelectorAll(".toggle-status").forEach(b => b.addEventListener("click", async () => {
-    const row = suppliers.find(s => s.id === b.dataset.id);
+    const row = suppliers.find(s => String(s.id) === b.dataset.id);
     row.status = row.status === "Ordered" ? "Arrived" : "Ordered";
     await saveCollection("ev-suppliers", suppliers);
     renderSuppliers();
