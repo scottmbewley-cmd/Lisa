@@ -3,40 +3,45 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Staff Login — Exquisitely You</title>
+<title>Staff Login — Evelle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
 <style>
-  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .login-card {
-    background: var(--white);
-    border: 1px solid rgba(61,69,75,0.1);
+    background: var(--staff-card);
+    border: 1px solid var(--staff-line);
+    border-top: 3px solid var(--staff-taupe);
+    border-radius: var(--staff-radius);
     padding: 48px 40px;
     max-width: 380px;
     width: 100%;
     text-align: center;
   }
-  .login-card .monogram { justify-content: center; margin-bottom: 8px; }
-  #login-error { color: #B4453A; font-size: 0.88rem; min-height: 20px; margin-top: 4px; }
+  .login-card .staff-logo-box { display: inline-flex; margin-bottom: 14px; }
+  #login-error { color: var(--staff-danger); font-size: 0.88rem; min-height: 20px; margin-top: 4px; }
 </style>
 </head>
-<body>
+<body class="staff-body">
 
-<div class="login-card">
-  <a href="../index.html" class="monogram"><img src="../assets/images/evelle-logo.png" alt="Evelle" style="height:44px;width:auto;"></a>
-  <p class="muted" style="margin-bottom:30px;">Staff area — Business Hub &amp; tools</p>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle" style="height:56px;width:auto;"></div>
+    <h1 class="staff-serif" style="margin:6px 0 2px; font-size:1.6rem;">Evelle</h1>
+    <p class="staff-muted" style="margin-bottom:30px; font-size:0.85rem; letter-spacing:0.06em; text-transform:uppercase;">Staff area &mdash; Business Hub &amp; tools</p>
 
-  <form id="login-form" style="text-align:left;">
-    <div class="field-group">
-      <label for="password">Password</label>
-      <input type="password" id="password" required autofocus />
-    </div>
-    <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
-    <p id="login-error"></p>
-  </form>
+    <form id="login-form" style="text-align:left;">
+      <div class="staff-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" required autofocus />
+      </div>
+      <button type="submit" class="staff-btn" style="width:100%; border:none;">Sign In</button>
+      <p id="login-error"></p>
+    </form>
 
-  <a href="../index.html" class="muted" style="display:inline-block; margin-top:20px; font-size:0.88rem; text-decoration:underline;">&larr; Back to site</a>
+    <a href="../index.html" class="staff-muted" style="display:inline-block; margin-top:20px; font-size:0.85rem; text-decoration:underline; color:var(--staff-white-dim);">&larr; Back to site</a>
+  </div>
 </div>
 
 <script>

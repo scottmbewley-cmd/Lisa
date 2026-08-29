@@ -2,15 +2,26 @@
   "name": "lisa-website",
   "main": "_worker.js",
   "compatibility_date": "2026-08-28",
+  "workers_dev": true,
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
+  "routes": [
+    { "pattern": "evellejewellery.co.uk", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "lisa-ey-db",
       "database_id": "1cbcab9d-8aeb-40d4-ae00-ebb8d8eb5f65"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "evelle-images"
     }
   ]
 }

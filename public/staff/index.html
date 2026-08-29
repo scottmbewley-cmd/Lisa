@@ -3,91 +3,71 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Staff Dashboard — Exquisitely You</title>
+<title>Staff Dashboard — Evelle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
 <style>
-  .tool-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 24px;
-    margin-top: 40px;
-  }
-  .tool-card {
-    background: var(--white);
-    border: 1px solid rgba(61,69,75,0.1);
-    padding: 30px 26px;
-    text-decoration: none;
-    color: var(--charcoal);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    display: block;
-  }
-  .tool-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(61,69,75,0.1); }
-  .tool-card.disabled { opacity: 0.55; cursor: default; }
-  .tool-card.disabled:hover { transform: none; box-shadow: none; }
   .tool-icon { font-size: 1.8rem; margin-bottom: 12px; }
-  .status-tag {
-    display: inline-block;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-top: 10px;
-  }
-  .status-live { background: var(--sage); color: var(--white); }
-  .status-soon { background: rgba(61,69,75,0.08); color: var(--charcoal); }
 </style>
 </head>
-<body>
+<body class="staff-body">
 
-<header class="site-header">
-  <div class="container">
-    <a href="../index.html" class="monogram"><img src="../assets/images/evelle-logo.png" alt="Evelle" style="height:44px;width:auto;"></a>
-    <nav class="main-nav">
-      <a href="../index.html">View Public Site</a>
-    </nav>
-  </div>
-</header>
-
-<section class="section">
-  <div class="container">
-    <span class="eyebrow">Staff area</span>
-    <h1 style="font-size:clamp(2rem,4vw,2.8rem);">Dashboard</h1>
-    <p class="muted">Everything for running the business, in one place.</p>
-
-    <div class="tool-grid">
-      <a href="hub.html" class="tool-card">
-        <div class="tool-icon">📦</div>
-        <h3>Business Hub</h3>
-        <p class="muted" style="font-size:0.92rem;">Inventory, sales, expenditure, suppliers &amp; notes.</p>
-        <span class="status-tag status-live">Live</span>
-      </a>
-
-      <div class="tool-card disabled">
-        <div class="tool-icon">🖼️</div>
-        <h3>Content Editor</h3>
-        <p class="muted" style="font-size:0.92rem;">Manage product photos, descriptions &amp; new ranges.</p>
-        <span class="status-tag status-soon">Coming soon</span>
-      </div>
-
-      <div class="tool-card disabled">
-        <div class="tool-icon">📊</div>
-        <h3>Accounting</h3>
-        <p class="muted" style="font-size:0.92rem;">Monthly, quarterly &amp; annual reports.</p>
-        <span class="status-tag status-soon">Coming soon</span>
-      </div>
-
-      <div class="tool-card disabled">
-        <div class="tool-icon">📮</div>
-        <h3>Postage</h3>
-        <p class="muted" style="font-size:0.92rem;">Order queue, labels &amp; tracking.</p>
-        <span class="status-tag status-soon">Coming soon</span>
-      </div>
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Staff Dashboard · The beauty of being you</div>
     </div>
   </div>
-</section>
+  <nav class="staff-nav">
+    <a href="../index.html">View Public Site</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.8rem); margin:0 0 6px;">Dashboard</h1>
+  <p class="staff-muted">Everything for running the business, in one place.</p>
+
+  <div class="staff-grid" style="margin-top:36px;">
+    <a href="hub.html" class="staff-tool-card">
+      <div class="tool-icon">📦</div>
+      <h3>Business Hub</h3>
+      <p class="staff-muted" style="font-size:0.92rem;">Inventory, sales, expenditure, suppliers &amp; notes.</p>
+      <span class="staff-status-tag staff-status-live">Live</span>
+    </a>
+
+    <a href="shop.html" class="staff-tool-card">
+      <div class="tool-icon">💍</div>
+      <h3>Shop Library</h3>
+      <p class="staff-muted" style="font-size:0.92rem;">Manage stock libraries and toggle what's live on the Shop page.</p>
+      <span class="staff-status-tag staff-status-live">Live</span>
+    </a>
+
+    <a href="content-editor.html" class="staff-tool-card">
+      <div class="tool-icon">🖼️</div>
+      <h3>Content Editor</h3>
+      <p class="staff-muted" style="font-size:0.92rem;">Edit the homepage hero, featured pieces &amp; text.</p>
+      <span class="staff-status-tag staff-status-live">Live</span>
+    </a>
+
+    <div class="staff-tool-card disabled">
+      <div class="tool-icon">📊</div>
+      <h3>Accounting</h3>
+      <p class="staff-muted" style="font-size:0.92rem;">Monthly, quarterly &amp; annual reports.</p>
+      <span class="staff-status-tag staff-status-soon">Coming soon</span>
+    </div>
+
+    <div class="staff-tool-card disabled">
+      <div class="tool-icon">📮</div>
+      <h3>Postage</h3>
+      <p class="staff-muted" style="font-size:0.92rem;">Order queue, labels &amp; tracking.</p>
+      <span class="staff-status-tag staff-status-soon">Coming soon</span>
+    </div>
+  </div>
+</main>
 
 </body>
 </html>

@@ -226,6 +226,176 @@ async function handleSuppliers(request, env, url) {
   return json({ error: "Method not allowed" }, 405);
 }
 
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function getActiveLibraries(env) {
+  const { results } = await env.DB.prepare(`SELECT active_libraries FROM shop_config WHERE id = 1`).all();
+  const raw = (results[0] && results[0].active_libraries) || "A,B";
+  return raw.split(",").map(s => s.trim()).filter(Boolean);
+}
+
+async function renderShopPage(request, env) {
+  const libs = await getActiveLibraries(env);
+  const placeholders = libs.map((_, i) => `?${i + 1}`).join(",");
+  const { results } = libs.length
+    ? await env.DB.prepare(`SELECT * FROM shop_products WHERE library IN (${placeholders}) ORDER BY position ASC, created_at ASC`).bind(...libs).all()
+    : { results: [] };
+
+  const cardsHtml = results.length
+    ? results.map(p => `
+      <div class="product-card">
+        <div class="product-image"><img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" /></div>
+        <div class="product-info">
+          <span class="eyebrow" style="font-size:0.85rem;">${escapeHtml(p.category)}</span>
+          <h3>${escapeHtml(p.name)}</h3>
+          <p class="product-price">${escapeHtml(p.price)}</p>
+        </div>
+      </div>`).join("")
+    : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon — check back shortly.</p>`;
+
+  const template = await (await env.ASSETS.fetch(new Request(new URL("/shop.html", request.url)))).text();
+  const html = template.replace("<!--SHOP_PRODUCTS-->", cardsHtml);
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function getHomeContent(env) {
+  const { results } = await env.DB.prepare(`SELECT * FROM home_content WHERE id = 1`).all();
+  return results[0] || {};
+}
+
+async function renderHomePage(request, env) {
+  const hc = await getHomeContent(env);
+  const heroUrl = hc.hero_image_url || "assets/images/evelle-hero.jpg";
+  const ids = [hc.featured_1, hc.featured_2, hc.featured_3, hc.featured_4].filter(Boolean);
+  let products = [];
+  if (ids.length) {
+    const placeholders = ids.map((_, i) => `?${i + 1}`).join(",");
+    const { results } = await env.DB.prepare(`SELECT * FROM shop_products WHERE id IN (${placeholders})`).bind(...ids).all();
+    products = ids.map(id => results.find(r => r.id === id)).filter(Boolean);
+  }
+
+  const cardsHtml = products.length
+    ? products.map(p => `
+      <div class="product-card">
+        <div class="product-image"><img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" /></div>
+        <div class="product-info">
+          <h3>${escapeHtml(p.name)}</h3>
+          <p class="product-price">${escapeHtml(p.price)}</p>
+        </div>
+      </div>`).join("")
+    : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon \u2014 check back shortly.</p>`;
+
+  const template = await (await env.ASSETS.fetch(new Request(new URL("/index.html", request.url)))).text();
+  const html = template
+    .replace("<!--HERO_IMAGE-->", escapeHtml(heroUrl))
+    .replace("<!--HOME_PRODUCTS-->", cardsHtml)
+    .replace("<!--WHY_HEADING-->", escapeHtml(hc.why_heading || "Everyday jewellery, built to last"))
+    .replace("<!--WHY_BODY-->", escapeHtml(hc.why_body || ""));
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function handleHomeContent(request, env) {
+  if (request.method === "GET") {
+    const hc = await getHomeContent(env);
+    return json(hc);
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const fields = ["hero_image_url", "featured_1", "featured_2", "featured_3", "featured_4", "why_heading", "why_body"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f] === "" ? null : b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    await env.DB.prepare(`UPDATE home_content SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+async function handleShopProducts(request, env, url) {
+  if (request.method === "GET") {
+    const { results } = await env.DB.prepare(`SELECT * FROM shop_products ORDER BY library, created_at DESC`).all();
+    return json(results);
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    if (!b.name || !b.price || !b.library) return json({ error: "name, price, and library are required" }, 400);
+    const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(position),-1) as maxPos FROM shop_products WHERE library = ?1`).bind(b.library).first();
+    if (countRow.n >= 20) return json({ error: "Library " + b.library + " is full (20/20). Remove a piece before adding another." }, 400);
+    const nextPos = countRow.maxPos + 1;
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO shop_products (name, price, category, image_url, library, position) VALUES (?1,?2,?3,?4,?5,?6)`
+    ).bind(b.name, b.price, b.category || "", b.image_url || "", b.library, nextPos).run();
+    return json({ success: true, id: insertRes.meta.last_row_id });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fields = ["name", "price", "category", "image_url", "library"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE shop_products SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM shop_products WHERE id = ?`).bind(id).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
+async function handleImageUpload(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  try {
+    const formData = await request.formData();
+    const file = formData.get("file");
+    if (!file || typeof file === "string") return json({ error: "No file provided" }, 400);
+    if (!file.type || !file.type.startsWith("image/")) return json({ error: "File must be an image" }, 400);
+    if (file.size > 8 * 1024 * 1024) return json({ error: "Image must be under 8MB" }, 400);
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const key = Date.now() + "-" + Math.random().toString(36).slice(2, 9) + "." + ext;
+    await env.IMAGES.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
+    return json({ success: true, url: "/images/" + key });
+  } catch (e) {
+    return json({ error: "Upload failed: " + e.message }, 500);
+  }
+}
+
+async function handleShopReorder(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const b = await request.json();
+  if (!b.library || !["A","B","C"].includes(b.library) || !Array.isArray(b.order)) {
+    return json({ error: "library and order[] (product ids) are required" }, 400);
+  }
+  const stmts = b.order.map((id, idx) =>
+    env.DB.prepare(`UPDATE shop_products SET position = ?1 WHERE id = ?2 AND library = ?3`).bind(idx, id, b.library)
+  );
+  if (stmts.length) await env.DB.batch(stmts);
+  return json({ success: true });
+}
+
+async function handleShopConfig(request, env) {
+  if (request.method === "GET") {
+    const libs = await getActiveLibraries(env);
+    return json({ active_libraries: libs });
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const libs = Array.isArray(b.active_libraries) ? b.active_libraries : [];
+    const valid = libs.filter(l => ["A", "B", "C"].includes(l));
+    if (valid.length !== 2) return json({ error: "Exactly two libraries must be active" }, 400);
+    await env.DB.prepare(`UPDATE shop_config SET active_libraries = ?1 WHERE id = 1`).bind(valid.join(",")).run();
+    return json({ success: true, active_libraries: valid });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
 async function handleNotes(request, env) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM notes ORDER BY updated_at DESC LIMIT 1`).all();
@@ -255,6 +425,18 @@ export default {
       return handleLogin(request, env);
     }
 
+    // Uploaded images are served publicly straight from R2
+    if (path.startsWith("/images/") && request.method === "GET") {
+      const key = path.slice("/images/".length);
+      const obj = await env.IMAGES.get(key);
+      if (!obj) return new Response("Not found", { status: 404 });
+      const headers = new Headers();
+      obj.writeHttpMetadata(headers);
+      headers.set("etag", obj.httpEtag);
+      headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      return new Response(obj.body, { headers });
+    }
+
     // Protect all other /api/* routes
     if (path.startsWith("/api/")) {
       if (!(await isAuthed(request, env))) {
@@ -265,13 +447,36 @@ export default {
       if (path === "/api/expenditure") return handleExpenditure(request, env, url);
       if (path === "/api/suppliers") return handleSuppliers(request, env, url);
       if (path === "/api/notes") return handleNotes(request, env);
+      if (path === "/api/shop-products") return handleShopProducts(request, env, url);
+      if (path === "/api/shop-config") return handleShopConfig(request, env);
+      if (path === "/api/shop-reorder") return handleShopReorder(request, env);
+      if (path === "/api/upload-image") return handleImageUpload(request, env);
+      if (path === "/api/home-content") return handleHomeContent(request, env);
       return json({ error: "Not found" }, 404);
     }
 
     // Protect staff pages (except the login page itself)
-    if (path.startsWith("/staff/") && path !== "/staff/login.html") {
+    if (path.startsWith("/staff/") && path !== "/staff/login.html" && path !== "/staff/login") {
       if (!(await isAuthed(request, env))) {
         return Response.redirect(new URL("/staff/login.html", url.origin), 302);
+      }
+    }
+
+
+    // Homepage is server-rendered from the database
+    if ((path === "/" || path === "/index.html") && request.method === "GET") {
+      try {
+        return await renderHomePage(request, env);
+      } catch (e) {
+        return env.ASSETS.fetch(request);
+      }
+    }
+    // Shop page is server-rendered from the database
+    if (path === "/shop.html" && request.method === "GET") {
+      try {
+        return await renderShopPage(request, env);
+      } catch (e) {
+        return json({ error: "Shop is temporarily unavailable" }, 500);
       }
     }
 

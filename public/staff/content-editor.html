@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Content Editor — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .ce-section { margin-bottom: 40px; }
+  .hero-preview {
+    width: 100%; max-width: 420px; aspect-ratio: 3/4; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--staff-line); background: var(--staff-card); margin-bottom: 16px;
+  }
+  .hero-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 16px; }
+  .pick-slot {
+    border: 1px solid var(--staff-line); border-radius: 6px; overflow: hidden; background: var(--staff-card);
+  }
+  .pick-slot img { width: 100%; aspect-ratio: 1/1.1; object-fit: cover; display: block; background: #222; }
+  .pick-slot select {
+    width: 100%; border: none; border-top: 1px solid var(--staff-line); background: transparent;
+    color: var(--staff-white); font-family: 'Inter', sans-serif; font-size: 0.8rem; padding: 8px; box-sizing: border-box;
+  }
+  .pick-slot .empty-thumb {
+    aspect-ratio: 1/1.1; display: flex; align-items: center; justify-content: center;
+    color: rgba(245,241,234,0.3); font-size: 0.75rem;
+  }
+  #status-msg { font-size: 0.85rem; margin: 16px 0; min-height: 20px; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Content Editor · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Homepage Content</h1>
+  <p class="staff-muted">Changes here go live on the homepage immediately after saving.</p>
+
+  <div id="status-msg"></div>
+
+  <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Hero image</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">The large banner photo at the top of the homepage. Landscape orientation recommended.</p>
+    <div class="hero-preview"><img id="hero-preview-img" src="" alt="Hero preview"></div>
+    <input type="file" id="hero-file" accept="image/*" style="display:none;" />
+    <button class="staff-btn" id="hero-upload-btn">Replace Hero Image</button>
+  </div>
+
+  <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">"New this season" — 4 featured pieces</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">Pick which pieces from your Shop Library appear on the homepage. These are fixed until you change them here.</p>
+    <div class="pick-grid" id="pick-grid"></div>
+  </div>
+
+  <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">"Why Evelle" text box</h3>
+    <div class="staff-field">
+      <label>Heading</label>
+      <input type="text" id="why-heading" />
+    </div>
+    <div class="staff-field">
+      <label>Body text</label>
+      <textarea id="why-body" rows="4" style="width:100%; font-family:'Inter',sans-serif; background:var(--staff-card); color:var(--staff-white); border:1px solid var(--staff-line); border-radius:6px; padding:10px; box-sizing:border-box;"></textarea>
+    </div>
+  </div>
+
+  <button class="staff-btn" id="save-btn">Save Changes</button>
+</main>
+
+<script>
+let allProducts = [];
+let homeContent = {};
+let pendingHeroFile = null;
+
+async function loadAll() {
+  const [prodRes, homeRes] = await Promise.all([
+    fetch('/api/shop-products'),
+    fetch('/api/home-content')
+  ]);
+  allProducts = await prodRes.json();
+  homeContent = await homeRes.json();
+
+  document.getElementById('hero-preview-img').src = homeContent.hero_image_url || '../assets/images/evelle-hero.jpg';
+  document.getElementById('why-heading').value = homeContent.why_heading || '';
+  document.getElementById('why-body').value = homeContent.why_body || '';
+
+  renderPickGrid();
+}
+
+function renderPickGrid() {
+  const grid = document.getElementById('pick-grid');
+  grid.innerHTML = '';
+  const slots = ['featured_1', 'featured_2', 'featured_3', 'featured_4'];
+  slots.forEach((field, i) => {
+    const selectedId = homeContent[field];
+    const selectedProduct = allProducts.find(p => String(p.id) === String(selectedId));
+
+    const wrap = document.createElement('div');
+    wrap.className = 'pick-slot';
+
+    const img = document.createElement(selectedProduct ? 'img' : 'div');
+    if (selectedProduct) {
+      img.src = selectedProduct.image_url || '';
+      img.alt = selectedProduct.name;
+    } else {
+      img.className = 'empty-thumb';
+      img.textContent = 'No piece selected';
+    }
+    wrap.appendChild(img);
+
+    const select = document.createElement('select');
+    select.dataset.field = field;
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— None —';
+    select.appendChild(noneOpt);
+    allProducts.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + ' (' + p.price + ')';
+      if (String(p.id) === String(selectedId)) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', () => {
+      homeContent[field] = select.value || null;
+      renderPickGrid();
+    });
+    wrap.appendChild(select);
+
+    grid.appendChild(wrap);
+  });
+}
+
+document.getElementById('hero-upload-btn').addEventListener('click', () => {
+  document.getElementById('hero-file').click();
+});
+
+document.getElementById('hero-file').addEventListener('change', (e) => {
+  pendingHeroFile = e.target.files[0] || null;
+  if (pendingHeroFile) {
+    document.getElementById('hero-preview-img').src = URL.createObjectURL(pendingHeroFile);
+  }
+});
+
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('status-msg');
+  const saveBtn = document.getElementById('save-btn');
+  msgEl.style.color = '';
+  saveBtn.disabled = true;
+
+  try {
+    let heroUrl = homeContent.hero_image_url;
+    if (pendingHeroFile) {
+      msgEl.textContent = 'Uploading hero image...';
+      const fd = new FormData();
+      fd.append('file', pendingHeroFile);
+      const uploadRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) {
+        msgEl.textContent = uploadData.error || 'Hero upload failed — try again.';
+        msgEl.style.color = 'var(--staff-danger)';
+        return;
+      }
+      heroUrl = uploadData.url;
+    }
+
+    msgEl.textContent = 'Saving...';
+    const payload = {
+      hero_image_url: heroUrl,
+      featured_1: homeContent.featured_1 || null,
+      featured_2: homeContent.featured_2 || null,
+      featured_3: homeContent.featured_3 || null,
+      featured_4: homeContent.featured_4 || null,
+      why_heading: document.getElementById('why-heading').value.trim(),
+      why_body: document.getElementById('why-body').value.trim()
+    };
+    const res = await fetchWithTimeout('/api/home-content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }, 15000);
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.textContent = data.error || 'Something went wrong saving that.';
+      msgEl.style.color = 'var(--staff-danger)';
+      return;
+    }
+    pendingHeroFile = null;
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved — homepage updated.';
+    await loadAll();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      msgEl.textContent = 'That timed out — try again.';
+    } else {
+      msgEl.textContent = 'Something went wrong: ' + err.message;
+    }
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+loadAll();
+</script>
+</body>
+</html>

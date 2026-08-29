@@ -3,43 +3,48 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Exquisitely You — Business Hub</title>
+<title>Evelle — Business Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #3A322C;
-    --steel: #8A7F76;
-    --cream: #FAF6F1;
-    --card: #FFFFFF;
-    --gold: #B8935A;
-    --gold-dark: #96774A;
-    --line: #E7DFD6;
-    --danger: #B85C4A;
-    --ok: #6E8B6A;
-    --ok-bg: #E9EFE7;
-    --gold-bg: #F3E9DF;
+    --ink: #F5F1EA;
+    --steel: #A69C8F;
+    --cream: #17140F;
+    --card: #2A251D;
+    --gold: #D4AF6A;
+    --gold-dark: #D4AF6A;
+    --line: rgba(245,241,234,0.12);
+    --danger: #D98470;
+    --ok: #8FB58A;
+    --ok-bg: rgba(143,181,138,0.15);
+    --gold-bg: rgba(212,175,106,0.15);
+    --taupe: #B7AF90;
+    --charcoal: #3D454B;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--cream);
     color: var(--ink);
-    font-family: 'Jost', Arial, sans-serif;
+    font-family: 'Inter', Arial, sans-serif;
   }
   .serif { font-family: 'Cormorant Garamond', serif; }
 
   header {
     display: flex; align-items: center; gap: 16px;
-    padding: 22px 20px 18px; border-bottom: 1px solid var(--line);
+    padding: 16px 28px; border-bottom: 2px solid var(--gold);
+    background: var(--taupe); color: var(--charcoal);
   }
   .monogram {
-    width: 56px; height: 56px; border-radius: 50%;
-    border: 1.5px solid var(--gold); display: flex; align-items: center; justify-content: center;
+    width: 56px; height: 56px; border-radius: 8px;
+    background: var(--ink); display: flex; align-items: center; justify-content: center;
     font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--gold); flex-shrink: 0;
+    overflow: hidden; padding: 4px;
   }
-  header h1 { margin: 0; font-size: 30px; font-weight: 600; }
-  header .tagline { margin-top: 2px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+  .monogram img { width: 100%; height: 100%; object-fit: contain; }
+  header h1 { margin: 0; font-size: 30px; font-weight: 600; color: var(--charcoal); }
+  header .tagline { margin-top: 2px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(61,69,75,0.75); }
 
   nav {
     display: flex; gap: 26px; padding: 0 20px; overflow-x: auto;
@@ -48,7 +53,7 @@
   .tab-btn {
     background: none; border: none; cursor: pointer; white-space: nowrap;
     padding: 14px 2px 12px; font-size: 15px; color: var(--steel);
-    border-bottom: 2px solid transparent; font-family: 'Jost', sans-serif;
+    border-bottom: 2px solid transparent; font-family: 'Inter', sans-serif;
   }
   .tab-btn.active { color: var(--ink); border-bottom-color: var(--gold); font-weight: 600; }
 
@@ -63,16 +68,16 @@
   input, select, textarea {
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
     font-size: 14px; color: var(--ink); background: var(--cream); outline: none; width: 100%;
-    font-family: 'Jost', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
   input[readonly] { color: var(--steel); }
 
   .btn {
     display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px;
     border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none;
-    font-family: 'Jost', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
-  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary { background: var(--gold); color: #1A1714; }
   .btn-ghost { background: transparent; color: var(--steel); border: 1px solid var(--line); }
   .btn-danger { background: transparent; color: var(--danger); padding: 6px; }
   .btn-icon { padding: 6px; }
@@ -139,13 +144,13 @@
 
 <header style="justify-content: space-between;">
   <div style="display:flex; align-items:center; gap:16px;">
-    <div class="monogram"><img src="../assets/images/evelle-logo.png" alt="Evelle" style="height:44px;width:auto;"></div>
+    <div class="monogram"><img src="../assets/images/evelle-logo.png" alt="Evelle" style="height:64px;width:auto;"></div>
     <div>
-      <h1 class="serif">Exquisitely You</h1>
-      <div class="tagline">Business Hub · Timeless</div>
+      <h1 class="serif">Evelle</h1>
+      <div class="tagline">Business Hub · The beauty of being you</div>
     </div>
   </div>
-  <a href="index.html" style="font-size:13px; color:var(--steel); text-decoration:none; letter-spacing:0.5px;">← Dashboard</a>
+  <a href="index.html" style="font-size:0.85rem; color:var(--charcoal); text-decoration:none; letter-spacing:0.03em; opacity:0.85;">&larr; Dashboard</a>
 </header>
 
 <nav>
@@ -283,7 +288,7 @@
             <option>PayPal Business</option>
           </select>
         </label>
-        <div class="card" style="grid-column:1 / -1;margin:0 0 4px 0;padding:12px;background:var(--card-alt,#F7F2EA);border-radius:10px;">
+        <div class="card" style="grid-column:1 / -1;margin:0 0 4px 0;padding:12px;background:rgba(212,175,106,0.08);border-radius:10px;">
           <div style="font-weight:600;margin-bottom:8px;font-size:14px;">USD → £ converter (for China suppliers)</div>
           <div class="grid">
             <label class="field">USD amount ($)

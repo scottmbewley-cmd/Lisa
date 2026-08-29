@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shop Library — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .lib-toggle { display: flex; gap: 12px; margin: 20px 0 26px; flex-wrap: wrap; }
+  #status-msg { font-size: 0.85rem; margin: 10px 0; min-height: 20px; }
+
+  .lib-tabs { display: flex; gap: 6px; margin: 40px 0 0; border-bottom: 1px solid var(--staff-line); }
+  .lib-tab-btn {
+    background: none; border: none; cursor: pointer; padding: 12px 22px;
+    font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; color: var(--staff-white-dim);
+    border-bottom: 2px solid transparent;
+  }
+  .lib-tab-btn.active { color: var(--staff-gold); border-bottom-color: var(--staff-gold); }
+  .lib-panel { display: none; padding: 24px 0; }
+  .lib-panel.active { display: block; }
+  .lib-panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+  .lib-panel-head .cap { font-size: 0.85rem; color: var(--staff-white-dim); }
+  .lib-panel-head .cap.full { color: var(--staff-danger); }
+
+  .slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .slot {
+    aspect-ratio: 1 / 1.15;
+    border: 1px dashed var(--staff-line);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(245,241,234,0.25);
+    font-size: 0.75rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .slot.filled {
+    border-style: solid;
+    background: var(--staff-card);
+    cursor: grab;
+    flex-direction: column;
+    padding: 0;
+  }
+  .slot.filled:active { cursor: grabbing; }
+  .slot.filled img { width: 100%; height: 68%; object-fit: cover; display: block; }
+  .slot-info { padding: 6px 8px; text-align: left; width: 100%; }
+  .slot-info .n { font-size: 0.72rem; color: var(--staff-white); line-height: 1.2; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slot-info .p { font-size: 0.7rem; color: var(--staff-gold); }
+  .slot-remove {
+    position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: var(--staff-white); border: none; cursor: pointer;
+    font-size: 0.75rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .slot.drag-over { border-color: var(--staff-gold); background: rgba(212,175,106,0.12); }
+  .add-tile {
+    aspect-ratio: 1 / 1.15;
+    border: 1px dashed var(--staff-gold);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--staff-gold);
+    cursor: pointer;
+    background: rgba(212,175,106,0.06);
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 8px;
+    overflow: hidden;
+  }
+  .add-tile:hover { background: rgba(212,175,106,0.15); }
+  .add-tile .plus { font-size: 1.6rem; line-height: 1; margin-bottom: 4px; }
+  .add-tile.has-preview { padding: 0; }
+  .add-tile.has-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .add-tile.full { border-color: var(--staff-line); color: var(--staff-white-dim); cursor: default; background: transparent; }
+
+  .add-form { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr 1fr auto; gap: 10px; align-items: end; margin: 30px 0; }
+  .add-form .staff-field { margin-bottom: 0; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Shop Library · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Shop Library</h1>
+  <p class="staff-muted">Three libraries, twenty slots each. Two are live on the public Shop page at any time.</p>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" style="margin-top:0;">Which libraries are live</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">This controls the public Shop page only — nothing to do with adding photos below.</p>
+    <div class="lib-toggle" id="lib-toggle">
+      <div class="staff-lib-card" data-lib="A"><h4>Library A</h4><span id="count-A">0 / 20</span></div>
+      <div class="staff-lib-card" data-lib="B"><h4>Library B</h4><span id="count-B">0 / 20</span></div>
+      <div class="staff-lib-card" data-lib="C"><h4>Library C</h4><span id="count-C">0 / 20</span></div>
+    </div>
+    <div id="lib-status-msg" style="font-size:0.85rem; margin:10px 0; min-height:20px;"></div>
+    <button class="staff-btn" id="save-libs-btn">Save Changes</button>
+  </div>
+
+  <h3 class="staff-serif" style="margin-top:0;">Manage stock in each library</h3>
+  <div class="lib-tabs" id="lib-tabs">
+    <button class="lib-tab-btn active" data-lib="A">Library A</button>
+    <button class="lib-tab-btn" data-lib="B">Library B</button>
+    <button class="lib-tab-btn" data-lib="C">Library C</button>
+  </div>
+
+  <div class="lib-panel active" data-lib="A">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-A">0 / 20</span></div>
+    <div class="slot-grid" id="grid-A"></div>
+  </div>
+  <div class="lib-panel" data-lib="B">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-B">0 / 20</span></div>
+    <div class="slot-grid" id="grid-B"></div>
+  </div>
+  <div class="lib-panel" data-lib="C">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-C">0 / 20</span></div>
+    <div class="slot-grid" id="grid-C"></div>
+  </div>
+
+  <input type="file" id="f-image-file" accept="image/*" style="display:none;" />
+  <h3 class="staff-serif" style="margin-top:30px;">Add a piece</h3>
+  <p class="staff-muted" id="add-hint" style="font-size:0.85rem;">Click the + tile in the grid above to choose a photo, then fill in the details below.</p>
+  <div id="status-msg" style="font-size:0.85rem; margin:10px 0; min-height:20px;"></div>
+  <div class="staff-card add-form">
+    <div class="staff-field"><label>Name</label><input type="text" id="f-name" /></div>
+    <div class="staff-field"><label>Price</label><input type="text" id="f-price" placeholder="£18.00" /></div>
+    <div class="staff-field"><label>Category</label><input type="text" id="f-category" placeholder="Earrings" /></div>
+    <button class="staff-btn" id="add-btn">Add</button>
+  </div>
+</main>
+<script>
+let allProducts = [];
+let activeLibraries = ["A","B"];
+let currentTab = "A";
+let pendingLibrary = null;
+
+async function loadAll() {
+  const [prodRes, cfgRes] = await Promise.all([
+    fetch('/api/shop-products'),
+    fetch('/api/shop-config')
+  ]);
+  allProducts = await prodRes.json();
+  const cfg = await cfgRes.json();
+  activeLibraries = cfg.active_libraries || ["A","B"];
+  renderToggle();
+  renderGrids();
+}
+
+function renderToggle() {
+  ["A","B","C"].forEach(lib => {
+    const count = allProducts.filter(p => p.library === lib).length;
+    document.getElementById('count-' + lib).textContent = count + ' / 20';
+    document.getElementById('cap-' + lib).textContent = count + ' / 20';
+    document.getElementById('cap-' + lib).classList.toggle('full', count >= 20);
+    const card = document.querySelector('.staff-lib-card[data-lib="' + lib + '"]');
+    card.classList.toggle('active', activeLibraries.includes(lib));
+  });
+}
+
+function renderGrids() {
+["A","B","C"].forEach(lib => {
+    const items = allProducts.filter(p => p.library === lib).sort((a,b) => a.position - b.position);
+    const grid = document.getElementById('grid-' + lib);
+    grid.innerHTML = '';
+    for (let i = 0; i < 20; i++) {
+      const p = items[i];
+      const slot = document.createElement('div');
+      slot.className = 'slot' + (p ? ' filled' : '');
+      slot.dataset.index = i;
+      if (p) {
+        slot.draggable = true;
+        slot.dataset.id = p.id;
+        slot.innerHTML =
+          '<button class="slot-remove" data-id="' + p.id + '" data-lib="' + lib + '">&times;</button>' +
+          '<img src="' + (p.image_url || '') + '" alt="' + p.name + '" onerror="this.style.display=\'none\'">' +
+          '<div class="slot-info"><span class="n">' + p.name + '</span><span class="p">' + p.price + '</span></div>';
+        slot.addEventListener('dragstart', onDragStart);
+      } else {
+        slot.textContent = 'Empty';
+      }
+      slot.addEventListener('dragover', onDragOver);
+      slot.addEventListener('dragleave', onDragLeave);
+      slot.addEventListener('drop', onDrop);
+      grid.appendChild(slot);
+    }
+
+    const addTile = document.createElement('div');
+    const isFull = items.length >= 20;
+    addTile.className = 'add-tile' + (isFull ? ' full' : '');
+    addTile.innerHTML = isFull ? 'Library full' : '<span class="plus">+</span>Add photo';
+    if (!isFull) {
+      addTile.addEventListener('click', () => {
+        pendingLibrary = lib;
+        document.getElementById('f-image-file').click();
+      });
+    }
+    grid.appendChild(addTile);
+
+    grid.querySelectorAll('.slot-remove').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Remove this piece?')) return;
+        await fetch('/api/shop-products?id=' + btn.dataset.id, { method: 'DELETE' });
+        await loadAll();
+      });
+    });
+  });
+}
+
+let dragSourceLib = null;
+let dragSourceId = null;
+
+function onDragStart(e) {
+  dragSourceLib = e.currentTarget.closest('.lib-panel').dataset.lib;
+  dragSourceId = e.currentTarget.dataset.id;
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+async function onDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const targetLib = e.currentTarget.closest('.lib-panel').dataset.lib;
+  if (targetLib !== dragSourceLib || !dragSourceId) return;
+
+  const items = allProducts.filter(p => p.library === targetLib).sort((a,b) => a.position - b.position);
+  const fromIdx = items.findIndex(p => String(p.id) === String(dragSourceId));
+  const toIdx = parseInt(e.currentTarget.dataset.index, 10);
+  if (fromIdx === -1 || toIdx >= items.length) return;
+
+  const moved = items.splice(fromIdx, 1)[0];
+  items.splice(toIdx, 0, moved);
+  const order = items.map(p => p.id);
+
+  await fetch('/api/shop-reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ library: targetLib, order: order })
+  });
+  await loadAll();
+}
+
+document.getElementById('lib-tabs').addEventListener('click', (e) => {
+  if (!e.target.classList.contains('lib-tab-btn')) return;
+  currentTab = e.target.dataset.lib;
+  document.querySelectorAll('.lib-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.lib === currentTab));
+  document.querySelectorAll('.lib-panel').forEach(p => p.classList.toggle('active', p.dataset.lib === currentTab));
+});
+
+document.querySelectorAll('.staff-lib-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const lib = card.dataset.lib;
+    activeLibraries = activeLibraries.includes(lib)
+      ? activeLibraries.filter(l => l !== lib)
+      : activeLibraries.concat([lib]);
+    renderToggle();
+    const msgEl = document.getElementById('lib-status-msg');
+    msgEl.style.color = '';
+    if (activeLibraries.length < 2) {
+      msgEl.textContent = 'Only ' + activeLibraries.length + ' selected \u2014 pick ' + (2 - activeLibraries.length) + ' more, then Save.';
+    } else if (activeLibraries.length > 2) {
+      msgEl.textContent = 'You have 3 selected \u2014 you can only have 2 live. Click one to deselect it before saving.';
+      msgEl.style.color = 'var(--staff-danger)';
+    } else {
+      msgEl.textContent = 'Ready to save.';
+    }
+  });
+});
+
+document.getElementById('save-libs-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('lib-status-msg');
+  if (activeLibraries.length !== 2) {
+    msgEl.textContent = 'You have ' + activeLibraries.length + ' selected \u2014 you must have exactly 2 live before saving.';
+    msgEl.style.color = 'var(--staff-danger)';
+    return;
+  }
+  const res = await fetch('/api/shop-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active_libraries: activeLibraries })
+  });
+  if (res.ok) {
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved \u2014 public Shop page reflects this immediately.';
+    await loadAll();
+  } else {
+    msgEl.style.color = 'var(--staff-danger)';
+    msgEl.textContent = 'Something went wrong saving that \u2014 try again.';
+  }
+});
+let pendingFile = null;
+
+document.getElementById('f-image-file').addEventListener('change', (e) => {
+  pendingFile = e.target.files[0] || null;
+  if (!pendingFile || !pendingLibrary) return;
+  document.getElementById('add-hint').textContent = 'Photo selected for Library ' + pendingLibrary + ' \u2014 fill in the details and hit Add.';
+  renderGrids();
+  const tile = document.querySelector('#grid-' + pendingLibrary + ' .add-tile');
+  if (tile) {
+    tile.classList.add('has-preview');
+    tile.innerHTML = '<img src="' + URL.createObjectURL(pendingFile) + '">';
+  }
+});
+
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+document.getElementById('add-btn').addEventListener('click', async () => {
+  const name = document.getElementById('f-name').value.trim();
+  const price = document.getElementById('f-price').value.trim();
+  const msgEl = document.getElementById('status-msg');
+  const addBtn = document.getElementById('add-btn');
+  msgEl.style.color = '';
+  if (!name || !price) { msgEl.textContent = 'Name and price are required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  if (!pendingLibrary) { msgEl.textContent = 'Click the + tile in a library first to choose a photo.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+
+  addBtn.disabled = true;
+  try {
+    let imageUrl = '';
+    if (pendingFile) {
+      msgEl.textContent = 'Uploading photo...';
+      const fd = new FormData();
+      fd.append('file', pendingFile);
+      const uploadRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) {
+        msgEl.textContent = uploadData.error || 'Photo upload failed \u2014 try again.';
+        msgEl.style.color = 'var(--staff-danger)';
+        return;
+      }
+      imageUrl = uploadData.url;
+    }
+
+    msgEl.textContent = 'Saving...';
+    const res = await fetchWithTimeout('/api/shop-products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name, price: price,
+        category: document.getElementById('f-category').value.trim(),
+        image_url: imageUrl,
+        library: pendingLibrary
+      })
+    }, 15000);
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.textContent = data.error || 'Something went wrong adding that piece.';
+      msgEl.style.color = 'var(--staff-danger)';
+      return;
+    }
+    ['f-name','f-price','f-category'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-image-file').value = '';
+    pendingFile = null;
+    pendingLibrary = null;
+    document.getElementById('add-hint').textContent = 'Click the + tile in the grid above to choose a photo, then fill in the details below.';
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Piece added.';
+    await loadAll();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      msgEl.textContent = 'That timed out after 25 seconds \u2014 something is wrong with the upload. Try a smaller photo or try again.';
+    } else {
+      msgEl.textContent = 'Something went wrong: ' + err.message;
+    }
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    addBtn.disabled = false;
+  }
+});
+
+loadAll();
+</script>
+</body>
+</html>
