@@ -288,7 +288,7 @@ function renderCropToBlob(outW, outH) {
     const canvas = document.createElement('canvas');
     canvas.width = outW; canvas.height = outH;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#2a241d';
+    ctx.fillStyle = '#E7E3DC';
     ctx.fillRect(0, 0, outW, outH);
     const destX = tx > 0 ? (tx / w) * outW : 0;
     const destY = ty > 0 ? (ty / h) * outH : 0;
