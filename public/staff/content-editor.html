@@ -16,14 +16,14 @@
     position: relative; overflow: hidden; touch-action: none; cursor: grab; margin-bottom: 12px;
   }
   .hero-viewport.dragging { cursor: grabbing; }
-  .hero-viewport.empty { display: flex; align-items: center; justify-content: center; color: rgba(245,241,234,0.3); font-size: 0.8rem; }
   #hero-crop-img {
     position: absolute; top: 0; left: 0; transform-origin: 0 0;
     user-select: none; -webkit-user-drag: none; pointer-events: none; max-width: none; max-height: none;
   }
-  .zoom-row { display: flex; align-items: center; gap: 10px; max-width: 560px; margin-bottom: 16px; }
+  .zoom-row { display: flex; align-items: center; gap: 10px; max-width: 560px; margin-bottom: 4px; }
   .zoom-row span { font-size: 0.78rem; color: var(--staff-white-dim); white-space: nowrap; }
   .zoom-row input[type="range"] { flex: 1; accent-color: var(--staff-gold); }
+  .zoom-labels { display: flex; justify-content: space-between; max-width: 560px; font-size: 0.7rem; color: rgba(245,241,234,0.35); margin-bottom: 14px; }
   .crop-hint { font-size: 0.78rem; color: var(--staff-white-dim); margin: 0 0 14px; }
 
   .pick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 16px; }
@@ -71,11 +71,12 @@
     <div class="hero-viewport" id="hero-viewport">
       <img id="hero-crop-img" src="" alt="" draggable="false" />
     </div>
-    <p class="crop-hint" id="crop-hint">Drag to reposition. Pinch, or scroll/two-finger swipe on trackpad, to zoom.</p>
+    <p class="crop-hint" id="crop-hint">Drag to reposition. Pinch, or scroll/two-finger swipe on trackpad, to zoom. Slide left to see more of the photo, right to zoom in.</p>
     <div class="zoom-row">
       <span>Zoom</span>
-      <input type="range" id="zoom-slider" min="100" max="400" value="100" />
+      <input type="range" id="zoom-slider" min="0" max="200" value="100" />
     </div>
+    <div class="zoom-labels"><span>Whole photo</span><span>Fills box</span><span>Zoomed in</span></div>
 
     <input type="file" id="hero-file" accept="image/*" style="display:none;" />
     <button class="staff-btn" id="hero-upload-btn">Replace Hero Image</button>
@@ -111,9 +112,10 @@ const viewport = document.getElementById('hero-viewport');
 const cropImg = document.getElementById('hero-crop-img');
 const zoomSlider = document.getElementById('zoom-slider');
 
-let natW = 0, natH = 0;      // natural pixel size of the loaded image
-let scale = 1, minScale = 1; // current & cover scale
-let tx = 0, ty = 0;          // current translate (px, viewport space)
+let natW = 0, natH = 0;          // natural pixel size of the loaded image
+let fitScale = 1, coverScale = 1; // whole-photo-visible scale, and box-filling scale
+let scale = 1;
+let tx = 0, ty = 0;               // current translate (px, viewport space)
 let cropLoaded = false;
 
 function viewportSize() {
@@ -121,12 +123,34 @@ function viewportSize() {
   return { w: r.width, h: r.height };
 }
 
+function maxAllowedScale() { return coverScale * 4; }
+
+function sliderToScale(v) {
+  const span = Math.max(coverScale - fitScale, 0.0001);
+  if (v <= 100) return fitScale + span * (v / 100);
+  return coverScale + (coverScale * 3) * ((v - 100) / 100);
+}
+function scaleToSlider(s) {
+  const span = Math.max(coverScale - fitScale, 0.0001);
+  if (s <= coverScale) return 100 * (s - fitScale) / span;
+  return 100 + 100 * (s - coverScale) / (coverScale * 3);
+}
+
+function clampAxis(viewSize, imgSize) {
+  // Returns {min, max} translate bounds for this axis, or a fixed centered value if the image doesn't fill it.
+  if (imgSize <= viewSize) {
+    const centered = (viewSize - imgSize) / 2;
+    return { min: centered, max: centered };
+  }
+  return { min: viewSize - imgSize, max: 0 };
+}
+
 function clampTranslate() {
   const { w, h } = viewportSize();
-  const minX = Math.min(0, w - natW * scale);
-  const minY = Math.min(0, h - natH * scale);
-  tx = Math.max(minX, Math.min(0, tx));
-  ty = Math.max(minY, Math.min(0, ty));
+  const bx = clampAxis(w, natW * scale);
+  const by = clampAxis(h, natH * scale);
+  tx = Math.max(bx.min, Math.min(bx.max, tx));
+  ty = Math.max(by.min, Math.min(by.max, ty));
 }
 
 function applyTransform() {
@@ -139,12 +163,12 @@ function setScale(newScale, centerX, centerY) {
   const cy = centerY === undefined ? h / 2 : centerY;
   const imgX = (cx - tx) / scale;
   const imgY = (cy - ty) / scale;
-  scale = Math.max(minScale, Math.min(minScale * 4, newScale));
+  scale = Math.max(fitScale, Math.min(maxAllowedScale(), newScale));
   tx = cx - imgX * scale;
   ty = cy - imgY * scale;
   clampTranslate();
   applyTransform();
-  zoomSlider.value = Math.round((scale / minScale) * 100);
+  zoomSlider.value = Math.round(scaleToSlider(scale));
 }
 
 function loadCropImage(src) {
@@ -155,14 +179,14 @@ function loadCropImage(src) {
     natH = probe.naturalHeight;
     cropImg.src = src;
     const { w, h } = viewportSize();
-    minScale = Math.max(w / natW, h / natH);
-    scale = minScale;
+    fitScale = Math.min(w / natW, h / natH);
+    coverScale = Math.max(w / natW, h / natH);
+    scale = coverScale; // default: box filled, same as a normal hero banner
     tx = (w - natW * scale) / 2;
     ty = (h - natH * scale) / 2;
     clampTranslate();
     applyTransform();
-    zoomSlider.value = 100;
-    viewport.classList.remove('empty');
+    zoomSlider.value = Math.round(scaleToSlider(scale));
     cropLoaded = true;
   };
   probe.src = src;
@@ -186,7 +210,7 @@ viewport.addEventListener('pointermove', (e) => {
   clampTranslate();
   applyTransform();
 });
-function endDrag(e) {
+function endDrag() {
   dragging = false;
   viewport.classList.remove('dragging');
 }
@@ -233,7 +257,7 @@ viewport.addEventListener('touchmove', (e) => {
   const rect = viewport.getBoundingClientRect();
   const newDist = touchDist(e.touches[0], e.touches[1]);
   const ratio = newDist / (pinchStartDist || newDist);
-  const newScale = Math.max(minScale, Math.min(minScale * 4, pinchStartScale * ratio));
+  const newScale = Math.max(fitScale, Math.min(maxAllowedScale(), pinchStartScale * ratio));
   const mid = touchMid(e.touches[0], e.touches[1], rect);
 
   const imgX = (pinchStartCx - pinchStartTx) / pinchStartScale;
@@ -243,16 +267,17 @@ viewport.addEventListener('touchmove', (e) => {
   ty = mid.y - imgY * scale;
   clampTranslate();
   applyTransform();
-  zoomSlider.value = Math.round((scale / minScale) * 100);
+  zoomSlider.value = Math.round(scaleToSlider(scale));
 }, { passive: false });
 
 zoomSlider.addEventListener('input', () => {
   if (!cropLoaded) return;
-  const target = minScale * (zoomSlider.value / 100);
-  setScale(target);
+  setScale(sliderToScale(Number(zoomSlider.value)));
 });
 
-/* Render current crop framing to a fixed-size canvas, return a Blob */
+/* Render current crop framing to a fixed-size canvas, return a Blob.
+   If the image doesn't fill the box (zoomed out below cover), the gaps are
+   filled with the box background colour so the output is always a clean 16:9. */
 function renderCropToBlob(outW, outH) {
   return new Promise((resolve) => {
     const { w, h } = viewportSize();
@@ -263,7 +288,16 @@ function renderCropToBlob(outW, outH) {
     const canvas = document.createElement('canvas');
     canvas.width = outW; canvas.height = outH;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, outW, outH);
+    ctx.fillStyle = '#2a241d';
+    ctx.fillRect(0, 0, outW, outH);
+    const destX = tx > 0 ? (tx / w) * outW : 0;
+    const destY = ty > 0 ? (ty / h) * outH : 0;
+    const destW = outW - (Math.max(0, tx) + Math.max(0, w - (tx + natW * scale))) / w * outW;
+    const destH = outH - (Math.max(0, ty) + Math.max(0, h - (ty + natH * scale))) / h * outH;
+    const clampedSx = Math.max(0, sx), clampedSy = Math.max(0, sy);
+    const clampedSw = Math.min(natW, sx + sw) - clampedSx;
+    const clampedSh = Math.min(natH, sy + sh) - clampedSy;
+    ctx.drawImage(cropImg, clampedSx, clampedSy, clampedSw, clampedSh, destX, destY, destW, destH);
     canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
   });
 }
