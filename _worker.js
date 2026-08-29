@@ -161,13 +161,14 @@ async function handleInvLowStock(request, env, url) {
   return json(results);
 }
 
-// Logs an automatic 'Stock' expenditure entry when Inventory quantity
-// genuinely increases (new item added, or an existing item restocked) —
-// real money leaving the business, so Lisa never has to re-type a cost
-// she already entered in Inventory. linked_inventory_id is what marks
-// this row as auto-generated: manual entries (the accounting page's
-// entry form) never set it, and can't pick category 'Stock' either, so
-// the two are always cleanly distinguishable in the ledger.
+// Logs an automatic 'Inventory Stock' expenditure entry when Inventory
+// quantity genuinely increases (new item added, or an existing item
+// restocked) — real money leaving the business, so Lisa never has to
+// re-type a cost she already entered in Inventory. linked_inventory_id is
+// what marks this row as auto-generated: manual entries (the accounting
+// page's entry form) never set it, and can't pick category
+// 'Inventory Stock' either, so the two are always cleanly distinguishable
+// in the ledger.
 //
 // Only called when qtyDelta > 0 (never on a decrease or an unchanged
 // quantity) and costPerItem > 0 (a zero-cost item has nothing real to
@@ -179,7 +180,7 @@ async function logStockExpenditure(env, { inventoryId, qtyDelta, costPerItem, na
      VALUES (?1,?2,?3,?4,?5,?6)`
   ).bind(
     new Date().toISOString().slice(0, 10),
-    "Stock",
+    "Inventory Stock",
     "",
     amount,
     `Auto: ${qtyDelta} × ${name} (${sku}) @ £${costPerItem.toFixed(2)} each`,
@@ -411,10 +412,11 @@ function escapeHtml(s) {
 // which is dead code blocked by HUB_DISABLED and tied to the old disabled
 // Business Hub. These reuse the existing `expenditure` table.
 //
-// "Stock" is reserved for Task 3's automatic logging (linked_inventory_id
-// set, category always 'Stock'). It's excluded here on purpose so a manual
-// entry can never masquerade as an auto-generated one — linked_inventory_id
-// IS NULL is what proves an entry came from this form.
+// "Inventory Stock" is reserved for Task 3's automatic logging
+// (linked_inventory_id set, category always 'Inventory Stock'). It's
+// excluded here on purpose so a manual entry can never masquerade as an
+// auto-generated one — linked_inventory_id IS NULL is what proves an
+// entry came from this form.
 const EXPENSE_CATEGORIES = ["Packaging", "Subscriptions", "Office", "Marketing", "Fees", "Other"];
 
 async function handleExpenseEntries(request, env, url) {
@@ -466,7 +468,7 @@ async function handleExpenseEntries(request, env, url) {
 // too would double-count it.
 //
 // Net Profit = Gross Profit - operating expenses, where "operating
-// expenses" is every expenditure category EXCEPT 'Stock'.
+// expenses" is every expenditure category EXCEPT 'Inventory Stock'.
 async function handleAccountingReport(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const from = url.searchParams.get("from");
@@ -490,9 +492,9 @@ async function handleAccountingReport(request, env, url) {
      GROUP BY category ORDER BY amount DESC`
   ).bind(from, to).all();
 
-  const stockRow = byCategory.find(r => r.category === "Stock");
+  const stockRow = byCategory.find(r => r.category === "Inventory Stock");
   const stockCashSpent = stockRow ? Number(stockRow.amount) : 0;
-  const operatingExpenses = byCategory.filter(r => r.category !== "Stock").reduce((sum, r) => sum + Number(r.amount), 0);
+  const operatingExpenses = byCategory.filter(r => r.category !== "Inventory Stock").reduce((sum, r) => sum + Number(r.amount), 0);
 
   const revenue = Number(revRow.revenue) || 0;
   const cogs = Number(cogsRow.cogs) || 0;

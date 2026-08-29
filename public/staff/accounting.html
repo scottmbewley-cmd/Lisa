@@ -98,7 +98,7 @@
     </div>
 
     <div class="cashflow-note">
-      <strong>Cash spent on stock this period: <span id="stat-stock-cash">£0.00</span></strong> — money that left the business buying stock. This is a cash-flow fact, not part of profit: it only affects profit once that stock actually sells (via Gross Profit, above), which can happen in a different period entirely.
+      <strong>Cash spent on Inventory Stock this period: <span id="stat-stock-cash">£0.00</span></strong> — money that left the business buying stock. This is a cash-flow fact, not part of profit: it only affects profit once that stock actually sells (via Gross Profit, above), which can happen in a different period entirely.
     </div>
 
     <h4 class="staff-serif" style="margin:20px 0 10px;">Expenditure by Category</h4>
@@ -107,7 +107,7 @@
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
     <h3 class="staff-serif" style="margin-top:0;">Log a Cost</h3>
-    <p class="staff-muted" style="font-size:0.85rem;">For anything Inventory doesn't already know about — packaging, subscriptions, office essentials, and the like. Stock costs log themselves automatically from Inventory.</p>
+    <p class="staff-muted" style="font-size:0.85rem;">For anything Inventory doesn't already know about — packaging, subscriptions, office essentials, and the like. Inventory Stock costs log themselves automatically from Inventory.</p>
     <div class="entry-form-row">
       <div class="staff-field"><label>Date</label><input type="date" id="e-date" /></div>
       <div class="staff-field"><label>Category</label>
@@ -215,7 +215,7 @@ async function runReport(from, to) {
     const cats = data.expense_by_category || [];
     const catTableHtml = cats.length
       ? '<table class="staff-table"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' +
-          cats.map(c => '<tr' + (c.category === 'Stock' ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (c.category === 'Stock' ? ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow, not in Net Profit)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>').join('') +
+          cats.map(c => '<tr' + (c.category === 'Inventory Stock' ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (c.category === 'Inventory Stock' ? ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow, not in Net Profit)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>').join('') +
         '</tbody></table>'
       : '<p class="staff-muted" style="font-size:0.85rem;">No expenditure logged in this period.</p>';
     document.getElementById('category-table-wrap').innerHTML = catTableHtml;
@@ -228,7 +228,7 @@ async function runReport(from, to) {
         '<tr class="total-row"><td>Gross Profit</td><td>' + money(data.gross_profit) + '</td></tr>' +
         '<tr><td>Operating Expenses</td><td>' + money(data.operating_expenses) + '</td></tr>' +
         '<tr class="total-row"><td>Net Profit</td><td>' + money(data.net_profit) + '</td></tr>' +
-        '<tr><td>Cash Spent on Stock (not in profit above)</td><td>' + money(data.stock_cash_spent) + '</td></tr>' +
+        '<tr><td>Cash Spent on Inventory Stock (not in profit above)</td><td>' + money(data.stock_cash_spent) + '</td></tr>' +
       '</tbody></table>' + catTableHtml;
   } catch (e) {
     statusEl.textContent = 'Could not load the report — check your connection and try again.';
@@ -246,7 +246,7 @@ async function loadRecentEntries() {
     wrap.innerHTML = rows.slice(0, 20).map(r => {
       const isAuto = r.linked_inventory_id !== null;
       return '<div class="recent-row" data-id="' + r.id + '">' +
-        '<div><strong>' + esc(r.category) + '</strong> <span class="tag' + (isAuto ? ' auto' : '') + '">' + (isAuto ? 'auto — stock' : 'manual') + '</span><br>' +
+        '<div><strong>' + esc(r.category) + '</strong> <span class="tag' + (isAuto ? ' auto' : '') + '">' + (isAuto ? 'auto — inventory stock' : 'manual') + '</span><br>' +
         '<span class="staff-muted">' + esc(r.exp_date) + (r.notes ? ' — ' + esc(r.notes) : '') + '</span></div>' +
         '<div style="text-align:right;"><span class="amt">' + money(r.amount) + '</span><br>' +
         (isAuto ? '' : '<button class="staff-del-btn del-entry-btn" data-id="' + r.id + '">Delete</button>') +
