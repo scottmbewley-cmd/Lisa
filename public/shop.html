@@ -32,9 +32,28 @@
   </div>
 </section>
 
+<section class="section" style="padding-top:0; padding-bottom:14px;">
+  <div class="container">
+    <div class="shop-filter-bar">
+      <input type="text" id="shop-search" class="shop-search-input" placeholder="Search by name, type, or stone — try &quot;ruby&quot; or &quot;rings&quot;" />
+      <div class="shop-filter-chips">
+        <button class="chip active" data-cat="">All</button>
+        <button class="chip" data-cat="Ring">Rings</button>
+        <button class="chip" data-cat="Bracelet">Bracelets</button>
+        <button class="chip" data-cat="Necklace">Necklaces</button>
+        <button class="chip" data-cat="Earring">Earrings</button>
+        <button class="chip" data-cat="Anklet">Anklets</button>
+        <button class="chip" data-cat="Other">Other</button>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section" style="padding-top:0;">
   <div class="container">
-    <div class="product-grid" id="product-grid"><!--SHOP_PRODUCTS--></div>
+    <div class="product-grid" id="product-grid"><!--SHOP_PRODUCTS-->
+      <p id="shop-empty-msg" class="muted" style="display:none; grid-column:1/-1;">No pieces match that search — try a different word.</p>
+    </div>
   </div>
 </section>
 

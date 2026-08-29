@@ -214,6 +214,41 @@ p { margin: 0 0 1em; }
   gap: 34px;
 }
 
+.shop-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.shop-search-input {
+  width: 100%;
+  max-width: 520px;
+  padding: 13px 16px;
+  border: 1px solid rgba(61,69,75,0.25);
+  background: var(--white);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  border-radius: 2px;
+}
+.shop-search-input:focus {
+  outline: 2px solid var(--sage);
+  outline-offset: 1px;
+}
+.shop-filter-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip {
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(61,69,75,0.25);
+  background: var(--white);
+  color: var(--charcoal);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.chip:hover { border-color: var(--charcoal); }
+.chip.active { background: var(--charcoal); border-color: var(--charcoal); color: var(--white); }
+
 .product-card {
   background: var(--white);
   border: 1px solid rgba(61, 69, 75, 0.08);

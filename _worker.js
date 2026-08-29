@@ -355,14 +355,17 @@ async function renderShopPage(request, env) {
   const libs = await getActiveLibraries(env);
   const placeholders = libs.map((_, i) => `?${i + 1}`).join(",");
   const { results } = libs.length
-    ? await env.DB.prepare(`SELECT * FROM inventory WHERE category IN (${placeholders}) AND shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).bind(...libs).all()
+    ? await env.DB.prepare(`SELECT * FROM inventory WHERE category IN (${placeholders}) AND shop_position IS NOT NULL ORDER BY RANDOM()`).bind(...libs).all()
     : { results: [] };
+
+  const CATEGORY_PLURAL = { Ring: "rings", Bracelet: "bracelets", Necklace: "necklaces", Earring: "earrings", Anklet: "anklets", Other: "other" };
 
   const cardsHtml = results.length
     ? results.map(p => {
         const soldOut = Number(p.quantity) <= 0;
+        const searchBlob = (p.name + " " + p.category + " " + (CATEGORY_PLURAL[p.category] || "") + " " + (p.notes || "")).toLowerCase();
         return `
-      <div class="product-card${soldOut ? ' sold-out' : ''}">
+      <div class="product-card${soldOut ? ' sold-out' : ''}" data-category="${escapeHtml(p.category)}" data-search="${escapeHtml(searchBlob)}">
         <div class="product-image">
           <img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}" />
           ${soldOut ? '<span class="sold-out-badge">Sold Out</span>' : ''}
