@@ -658,10 +658,14 @@ function mergeCartLines(items) {
 // Confirms an order: atomically checks-and-decrements stock for every cart
 // line, then creates the order + order_items rows.
 //
-// Pricing is always re-read from the live inventory row at the moment of
-// decrement (via UPDATE ... RETURNING) — never trusted from the client —
-// so a stale or tampered cart can't under-charge, and order_items snapshot
-// the real price charged rather than a live join back to inventory.
+// Pricing AND cost are always re-read from the live inventory row at the
+// moment of decrement (via UPDATE ... RETURNING) — never trusted from the
+// client — so a stale or tampered cart can't under-charge, and order_items
+// snapshot both the real price charged and the real cost at that moment,
+// rather than a live join back to inventory. cost_per_item on an inventory
+// row can change after the fact (a restock at a new price, a correction),
+// so without this snapshot a later Gross Profit report would silently use
+// today's cost for a sale that happened under yesterday's cost.
 //
 // Concurrency / the "last item" race: each line's guard-and-decrement is a
 // single `UPDATE ... WHERE quantity >= ? RETURNING ...` statement, so the
@@ -686,12 +690,12 @@ async function confirmOrder(env, input) {
   const items = mergeCartLines(input.items);
   if (!items.length) return { success: false, error: "empty_cart" };
 
-  const decremented = []; // { id, qty, sku, name, category, sell_price }
+  const decremented = []; // { id, qty, sku, name, category, sell_price, cost_per_item }
   for (const line of items) {
     const row = await env.DB.prepare(
       `UPDATE inventory SET quantity = quantity - ?1, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?2 AND quantity >= ?1
-       RETURNING sku, name, category, sell_price`
+       RETURNING sku, name, category, sell_price, cost_per_item`
     ).bind(line.qty, line.id).first();
 
     if (!row) {
@@ -704,7 +708,10 @@ async function confirmOrder(env, input) {
       return { success: false, error: "item_unavailable", item: failedItem || { id: line.id } };
     }
 
-    decremented.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, sell_price: Number(row.sell_price) || 0 });
+    decremented.push({
+      id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category,
+      sell_price: Number(row.sell_price) || 0, cost_per_item: Number(row.cost_per_item) || 0,
+    });
   }
 
   const subtotal = decremented.reduce((sum, it) => sum + it.sell_price * it.qty, 0);
@@ -724,9 +731,9 @@ async function confirmOrder(env, input) {
 
   const itemStmts = decremented.map(it =>
     env.DB.prepare(
-      `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
-    ).bind(orderId, it.id, it.sku, it.name, it.category, it.sell_price, it.qty, it.sell_price * it.qty)
+      `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total, unit_cost, line_cost)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)`
+    ).bind(orderId, it.id, it.sku, it.name, it.category, it.sell_price, it.qty, it.sell_price * it.qty, it.cost_per_item, it.cost_per_item * it.qty)
   );
   await env.DB.batch(itemStmts);
 
