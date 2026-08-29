@@ -25,6 +25,15 @@
   .thumb-empty { width: 40px; height: 40px; border-radius: 5px; background: rgba(255,255,255,0.04); }
   #status-msg, #search-status { font-size: 0.85rem; min-height: 20px; margin: 8px 0; }
   .row-actions button { margin-right: 6px; }
+  .section-toggle {
+    background: none; border: none; cursor: pointer; padding: 0; margin: 0;
+    font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: var(--staff-white);
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  }
+  .section-toggle .chevron { display: inline-block; transition: transform 0.2s ease; font-size: 0.8rem; color: var(--staff-gold); }
+  .section-toggle.open .chevron { transform: rotate(90deg); }
+  .collapsible-content { display: none; margin-top: 14px; }
+  .collapsible-content.open { display: block; }
   @media print {
     body.staff-body > *:not(#print-area) { display: none !important; }
     #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
@@ -55,12 +64,6 @@
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Inventory</h1>
   <p class="staff-muted">Log every piece here — fill it in fully and it goes straight to Shop Library, live on the site. This is where its SKU is created and its stock level lives.</p>
-
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" style="margin-top:0;">Running low</h3>
-    <p class="staff-muted" style="font-size:0.85rem; margin-top:-6px;">Anything at or under its reorder point, grouped by type.</p>
-    <div id="low-stock-wrap"><p class="staff-muted" style="font-size:0.85rem;">Checking stock…</p></div>
-  </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
     <h3 class="staff-serif" id="form-title" style="margin-top:0;">Add an item</h3>
@@ -108,16 +111,36 @@
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" style="margin-top:0;">Stock report</h3>
-    <p class="staff-muted" style="font-size:0.85rem; margin-top:-6px;">Pick one, several, or all — see total remaining stock and value at a glance.</p>
-    <div id="report-checks" style="display:flex; gap:16px; flex-wrap:wrap; margin:14px 0;"></div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="staff-btn outline" id="report-all-btn" type="button" style="padding:8px 16px;">Select all</button>
-      <button class="staff-btn outline" id="report-none-btn" type="button" style="padding:8px 16px;">Select none</button>
-      <button class="staff-btn" id="report-run-btn" type="button">Run report</button>
-      <button class="staff-btn outline" id="report-print-btn" type="button" style="padding:8px 16px;">Print report</button>
+    <button type="button" id="lowstock-toggle" class="section-toggle">
+      <span class="chevron">▸</span> Running low <span id="lowstock-count" class="staff-pill" style="margin-left:4px;">0</span>
+    </button>
+    <div id="lowstock-content" class="collapsible-content">
+      <p class="staff-muted" style="font-size:0.85rem;">Anything currently live in the shop, at or under its reorder point.</p>
+      <div class="staff-field" style="max-width:220px;"><label>Category</label>
+        <select id="lowstock-category">
+          <option value="">All categories</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+        </select>
+      </div>
+      <div id="low-stock-wrap"><p class="staff-muted" style="font-size:0.85rem;">Checking stock…</p></div>
     </div>
-    <div id="report-results" style="margin-top:16px;"></div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <button type="button" id="report-toggle" class="section-toggle">
+      <span class="chevron">▸</span> Stock report
+    </button>
+    <div id="report-content" class="collapsible-content">
+      <p class="staff-muted" style="font-size:0.85rem;">Pick one, several, or all — see total remaining stock and value at a glance.</p>
+      <div id="report-checks" style="display:flex; gap:16px; flex-wrap:wrap; margin:14px 0;"></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="staff-btn outline" id="report-all-btn" type="button" style="padding:8px 16px;">Select all</button>
+        <button class="staff-btn outline" id="report-none-btn" type="button" style="padding:8px 16px;">Select none</button>
+        <button class="staff-btn" id="report-run-btn" type="button">Run report</button>
+        <button class="staff-btn outline" id="report-print-btn" type="button" style="padding:8px 16px;">Print report</button>
+      </div>
+      <div id="report-results" style="margin-top:16px;"></div>
+    </div>
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
@@ -160,9 +183,12 @@ function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "
 
 async function loadLowStock() {
   const wrap = document.getElementById('low-stock-wrap');
+  const category = document.getElementById('lowstock-category').value;
   try {
-    const res = await fetch('/api/inv-lowstock');
+    const params = category ? ('?category=' + encodeURIComponent(category)) : '';
+    const res = await fetch('/api/inv-lowstock' + params);
     const rows = await res.json();
+    document.getElementById('lowstock-count').textContent = rows.length;
     if (!rows.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Nothing running low right now.</p>'; return; }
     const groups = {};
     rows.forEach(r => { const k = r.category || 'Uncategorised'; (groups[k] = groups[k] || []).push(r); });
@@ -182,6 +208,18 @@ async function loadLowStock() {
     wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load — check your connection and reload.</p>';
   }
 }
+document.getElementById('lowstock-category').addEventListener('change', loadLowStock);
+
+function wireToggle(btnId, contentId) {
+  const btn = document.getElementById(btnId);
+  const content = document.getElementById(contentId);
+  btn.addEventListener('click', () => {
+    const isOpen = content.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
+  });
+}
+wireToggle('lowstock-toggle', 'lowstock-content');
+wireToggle('report-toggle', 'report-content');
 
 function setPhotoPreview(url) {
   currentPhotoUrl = url || '';

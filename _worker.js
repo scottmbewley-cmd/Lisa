@@ -150,11 +150,14 @@ async function handleInvSearch(request, env, url) {
   return json(results);
 }
 
-async function handleInvLowStock(request, env) {
+async function handleInvLowStock(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM inventory WHERE quantity <= COALESCE(reorder_at, 2) ORDER BY category ASC, quantity ASC`
-  ).all();
+  const category = url.searchParams.get("category") || "";
+  let sql = `SELECT * FROM inventory WHERE shop_position IS NOT NULL AND quantity <= COALESCE(reorder_at, 2)`;
+  const binds = [];
+  if (category) { sql += ` AND category = ?1`; binds.push(category); }
+  sql += ` ORDER BY category ASC, quantity ASC`;
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
   return json(results);
 }
 
@@ -662,7 +665,7 @@ export default {
       if (path === "/api/inventory") return handleInventory(request, env, url);
       if (path === "/api/inv-search") return handleInvSearch(request, env, url);
       if (path === "/api/inv-report") return handleInvReport(request, env, url);
-      if (path === "/api/inv-lowstock") return handleInvLowStock(request, env);
+      if (path === "/api/inv-lowstock") return handleInvLowStock(request, env, url);
       if (path === "/api/inv-items") return handleInvItems(request, env, url);
       if (path === "/api/sales") return handleSales(request, env, url);
       if (path === "/api/expenditure") return handleExpenditure(request, env, url);
