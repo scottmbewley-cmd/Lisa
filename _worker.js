@@ -2,6 +2,11 @@
 // Handles /api/* routes and staff-area auth gating, serves everything else
 // as static assets via the ASSETS binding.
 
+// Kill-switch: Business Hub is temporarily taken offline while a replacement
+// is built. Flip to false and redeploy to restore access.
+const HUB_DISABLED = true;
+const HUB_API_ROUTES = new Set(["/api/inventory", "/api/sales", "/api/expenditure", "/api/suppliers", "/api/notes"]);
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -555,6 +560,9 @@ export default {
       if (!(await isAuthed(request, env))) {
         return json({ error: "Unauthorized" }, 401);
       }
+      if (HUB_DISABLED && HUB_API_ROUTES.has(path)) {
+        return json({ error: "Not found" }, 404);
+      }
       if (path === "/api/inventory") return handleInventory(request, env, url);
       if (path === "/api/sales") return handleSales(request, env, url);
       if (path === "/api/expenditure") return handleExpenditure(request, env, url);
@@ -575,6 +583,9 @@ export default {
     if (path.startsWith("/staff/") && path !== "/staff/login.html" && path !== "/staff/login") {
       if (!(await isAuthed(request, env))) {
         return Response.redirect(new URL("/staff/login.html", url.origin), 302);
+      }
+      if (HUB_DISABLED && (path === "/staff/hub.html" || path === "/staff/hub")) {
+        return Response.redirect(new URL("/staff/index.html", url.origin), 302);
       }
     }
 
