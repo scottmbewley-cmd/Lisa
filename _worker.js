@@ -630,6 +630,99 @@ async function handleShopConfig(request, env) {
 }
 
 const ORDER_STATUSES = ["paid", "posted", "cancelled"];
+const UK_SHIPPING_FLAT = 2.50; // must match public/assets/js/cart.js's UK_SHIPPING_FLAT
+
+// Sums duplicate ids so a tampered or stale client cart can't submit the
+// same line twice to bypass the per-line stock guard below.
+function mergeCartLines(items) {
+  const map = new Map();
+  (items || []).forEach(it => {
+    const id = it && it.id;
+    if (id === undefined || id === null || id === "") return;
+    const qty = Number(it.qty) || 0;
+    if (qty <= 0) return;
+    map.set(id, (map.get(id) || 0) + qty);
+  });
+  return [...map.entries()].map(([id, qty]) => ({ id, qty }));
+}
+
+// Confirms an order: atomically checks-and-decrements stock for every cart
+// line, then creates the order + order_items rows.
+//
+// Pricing is always re-read from the live inventory row at the moment of
+// decrement (via UPDATE ... RETURNING) — never trusted from the client —
+// so a stale or tampered cart can't under-charge, and order_items snapshot
+// the real price charged rather than a live join back to inventory.
+//
+// Concurrency / the "last item" race: each line's guard-and-decrement is a
+// single `UPDATE ... WHERE quantity >= ? RETURNING ...` statement, so the
+// check and the decrement happen as one atomic step with no window for
+// another request to interleave between them. D1/SQLite serializes writes
+// to a given row, so when two customers race for the last unit, only one
+// UPDATE's WHERE clause can still see quantity >= qty and succeed — the
+// other affects 0 rows (RETURNING gives back nothing), which is treated as
+// a clean sold-out failure, never a double-sell.
+//
+// A cart can hold several different items. If a later line in the same
+// order fails its guard, every line already decremented earlier in this
+// same call is compensated (added back) before returning, so a multi-item
+// order never leaves partial stock committed with no matching order.
+//
+// Caller contract: only call this AFTER payment has already been captured
+// server-side (e.g. a verified PayPal capture) — this function reserves
+// stock and records the order, it does not take payment. If it returns
+// sold_out after payment has been captured, the caller is responsible for
+// refunding/voiding that capture — this function has no PayPal awareness.
+async function confirmOrder(env, input) {
+  const items = mergeCartLines(input.items);
+  if (!items.length) return { success: false, error: "empty_cart" };
+
+  const decremented = []; // { id, qty, sku, name, category, sell_price }
+  for (const line of items) {
+    const row = await env.DB.prepare(
+      `UPDATE inventory SET quantity = quantity - ?1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?2 AND quantity >= ?1
+       RETURNING sku, name, category, sell_price`
+    ).bind(line.qty, line.id).first();
+
+    if (!row) {
+      // Guard failed — undo every decrement already made earlier in this order.
+      for (const done of decremented) {
+        await env.DB.prepare(`UPDATE inventory SET quantity = quantity + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`)
+          .bind(done.qty, done.id).run();
+      }
+      const failedItem = await env.DB.prepare(`SELECT id, name, sku FROM inventory WHERE id = ?1`).bind(line.id).first();
+      return { success: false, error: "item_unavailable", item: failedItem || { id: line.id } };
+    }
+
+    decremented.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, sell_price: Number(row.sell_price) || 0 });
+  }
+
+  const subtotal = decremented.reduce((sum, it) => sum + it.sell_price * it.qty, 0);
+  const shipping = UK_SHIPPING_FLAT;
+  const total = subtotal + shipping;
+  const c = input.customer || {};
+
+  const orderInsert = await env.DB.prepare(
+    `INSERT INTO orders (status, customer_name, customer_email, address_line1, address_line2, city, county, postcode, notes, subtotal, shipping, total, paypal_order_id, paypal_capture_id)
+     VALUES ('paid', ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`
+  ).bind(
+    c.name || "", c.email || "", c.address_line1 || "", c.address_line2 || "",
+    c.city || "", c.county || "", c.postcode || "", c.notes || "",
+    subtotal, shipping, total, input.paypal_order_id || null, input.paypal_capture_id || null
+  ).run();
+  const orderId = orderInsert.meta.last_row_id;
+
+  const itemStmts = decremented.map(it =>
+    env.DB.prepare(
+      `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
+    ).bind(orderId, it.id, it.sku, it.name, it.category, it.sell_price, it.qty, it.sell_price * it.qty)
+  );
+  await env.DB.batch(itemStmts);
+
+  return { success: true, orderId, subtotal, shipping, total };
+}
 
 async function handleOrders(request, env, url) {
   if (request.method === "GET") {
