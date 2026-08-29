@@ -313,6 +313,79 @@ async function handleHomeContent(request, env) {
   }
   return json({ error: "Method not allowed" }, 405);
 }
+async function getStoryContent(env) {
+  const { results } = await env.DB.prepare(`SELECT * FROM story_content WHERE id = 1`).all();
+  return results[0] || {};
+}
+
+async function renderStoryPage(request, env) {
+  const sc = await getStoryContent(env);
+  const imageHtml = sc.image_url
+    ? `<img src="${escapeHtml(sc.image_url)}" alt="" style="width:100%;max-width:480px;aspect-ratio:4/5;object-fit:cover;border-radius:20px;display:block;margin:0 auto 32px;" />`
+    : "";
+  const noteHtml = sc.note
+    ? `<p class="muted" style="font-style:italic;">${escapeHtml(sc.note)}</p>`
+    : "";
+
+  const template = await (await env.ASSETS.fetch(new Request(new URL("/story.html", request.url)))).text();
+  const html = template
+    .replace("<!--STORY_EYEBROW-->", escapeHtml(sc.eyebrow || "From the workbench"))
+    .replace("<!--STORY_HEADING-->", escapeHtml(sc.heading || "Our Story"))
+    .replace("<!--STORY_IMAGE-->", imageHtml)
+    .replace("<!--STORY_PARA1-->", escapeHtml(sc.paragraph_1 || ""))
+    .replace("<!--STORY_PARA2-->", escapeHtml(sc.paragraph_2 || ""))
+    .replace("<!--STORY_NOTE-->", noteHtml);
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function handleStoryContent(request, env) {
+  if (request.method === "GET") {
+    return json(await getStoryContent(env));
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const fields = ["eyebrow", "heading", "paragraph_1", "paragraph_2", "note", "image_url"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f] === "" ? null : b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    await env.DB.prepare(`UPDATE story_content SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
+async function getContactContent(env) {
+  const { results } = await env.DB.prepare(`SELECT * FROM contact_content WHERE id = 1`).all();
+  return results[0] || {};
+}
+
+async function renderContactPage(request, env) {
+  const cc = await getContactContent(env);
+  const template = await (await env.ASSETS.fetch(new Request(new URL("/contact.html", request.url)))).text();
+  const html = template
+    .replace("<!--CONTACT_EYEBROW-->", escapeHtml(cc.eyebrow || "Say hello"))
+    .replace("<!--CONTACT_HEADING-->", escapeHtml(cc.heading || "Get in Touch"))
+    .replace("<!--CONTACT_SUBTITLE-->", escapeHtml(cc.subtitle || ""));
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function handleContactContent(request, env) {
+  if (request.method === "GET") {
+    return json(await getContactContent(env));
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const fields = ["eyebrow", "heading", "subtitle"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f] === "" ? null : b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    await env.DB.prepare(`UPDATE contact_content SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
 async function handleShopProducts(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT * FROM shop_products ORDER BY library, created_at DESC`).all();
@@ -452,6 +525,8 @@ export default {
       if (path === "/api/shop-reorder") return handleShopReorder(request, env);
       if (path === "/api/upload-image") return handleImageUpload(request, env);
       if (path === "/api/home-content") return handleHomeContent(request, env);
+      if (path === "/api/story-content") return handleStoryContent(request, env);
+      if (path === "/api/contact-content") return handleContactContent(request, env);
       return json({ error: "Not found" }, 404);
     }
 
@@ -467,6 +542,23 @@ export default {
     if ((path === "/" || path === "/index.html") && request.method === "GET") {
       try {
         return await renderHomePage(request, env);
+      } catch (e) {
+        return env.ASSETS.fetch(request);
+      }
+    }
+    // Story page is server-rendered from the database
+    if (path === "/story.html" && request.method === "GET") {
+      try {
+        return await renderStoryPage(request, env);
+      } catch (e) {
+        return env.ASSETS.fetch(request);
+      }
+    }
+
+    // Contact page is server-rendered from the database
+    if (path === "/contact.html" && request.method === "GET") {
+      try {
+        return await renderContactPage(request, env);
       } catch (e) {
         return env.ASSETS.fetch(request);
       }

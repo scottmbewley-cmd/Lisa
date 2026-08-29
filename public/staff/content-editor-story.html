@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Story Content — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .ce-section { margin-bottom: 40px; }
+
+  .hero-viewport {
+    width: 100%; max-width: 340px; aspect-ratio: 4/5; border-radius: 8px;
+    border: 1px solid var(--staff-line); background: #E7E3DC;
+    position: relative; overflow: hidden; touch-action: none; cursor: grab; margin-bottom: 12px;
+  }
+  .hero-viewport.dragging { cursor: grabbing; }
+  #hero-crop-img {
+    position: absolute; top: 0; left: 0; transform-origin: 0 0;
+    user-select: none; -webkit-user-drag: none; pointer-events: none; max-width: none; max-height: none;
+  }
+  .zoom-row { display: flex; align-items: center; gap: 10px; max-width: 340px; margin-bottom: 4px; }
+  .zoom-row span { font-size: 0.78rem; color: var(--staff-white-dim); white-space: nowrap; }
+  .zoom-row input[type="range"] { flex: 1; accent-color: var(--staff-gold); }
+  .zoom-labels { display: flex; justify-content: space-between; max-width: 340px; font-size: 0.7rem; color: rgba(245,241,234,0.35); margin-bottom: 14px; }
+  .crop-hint { font-size: 0.78rem; color: var(--staff-white-dim); margin: 0 0 14px; }
+  .remove-link { display:inline-block; margin-top:10px; font-size:0.78rem; color: var(--staff-white-dim); cursor:pointer; text-decoration: underline; }
+  #status-msg { font-size: 0.85rem; margin: 16px 0; min-height: 20px; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Content Editor · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="content-editor.html">&larr; All Pages</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Story Page Content</h1>
+  <p class="staff-muted">Changes here go live on the Story page immediately after saving.</p>
+
+  <div id="status-msg"></div>
+
+  <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Photo</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">A photo of the premises, the people behind Evelle, or the work itself. Optional — leave empty to show no photo.</p>
+
+    <div class="hero-viewport" id="hero-viewport">
+      <img id="hero-crop-img" src="" alt="" draggable="false" />
+    </div>
+    <p class="crop-hint" id="crop-hint">Drag to reposition. Pinch, or scroll/two-finger swipe on trackpad, to zoom.</p>
+    <div class="zoom-row">
+      <span>Zoom</span>
+      <input type="range" id="zoom-slider" min="0" max="200" value="100" />
+    </div>
+    <div class="zoom-labels"><span>Whole photo</span><span>Fills box</span><span>Zoomed in</span></div>
+
+    <input type="file" id="hero-file" accept="image/*" style="display:none;" />
+    <button class="staff-btn" id="hero-upload-btn">Upload / Replace Photo</button>
+    <span class="remove-link" id="remove-photo-link">Remove photo</span>
+  </div>
+
+  <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Text</h3>
+    <div class="staff-field">
+      <label>Eyebrow (small label above heading)</label>
+      <input type="text" id="f-eyebrow" />
+    </div>
+    <div class="staff-field">
+      <label>Heading</label>
+      <input type="text" id="f-heading" />
+    </div>
+    <div class="staff-field">
+      <label>Paragraph 1</label>
+      <textarea id="f-para1" rows="3" style="width:100%; font-family:'Inter',sans-serif; background:var(--staff-card); color:var(--staff-white); border:1px solid var(--staff-line); border-radius:6px; padding:10px; box-sizing:border-box;"></textarea>
+    </div>
+    <div class="staff-field">
+      <label>Paragraph 2</label>
+      <textarea id="f-para2" rows="3" style="width:100%; font-family:'Inter',sans-serif; background:var(--staff-card); color:var(--staff-white); border:1px solid var(--staff-line); border-radius:6px; padding:10px; box-sizing:border-box;"></textarea>
+    </div>
+    <div class="staff-field">
+      <label>Note (small italic line, e.g. "Coming soon" — leave blank to remove)</label>
+      <input type="text" id="f-note" />
+    </div>
+  </div>
+
+  <button class="staff-btn" id="save-btn">Save Changes</button>
+</main>
+
+<script>
+let storyContent = {};
+let photoRemoved = false;
+
+/* ---------- Photo crop engine (same mechanics as Home hero) ---------- */
+const viewport = document.getElementById('hero-viewport');
+const cropImg = document.getElementById('hero-crop-img');
+const zoomSlider = document.getElementById('zoom-slider');
+
+let natW = 0, natH = 0;
+let fitScale = 1, coverScale = 1;
+let scale = 1;
+let tx = 0, ty = 0;
+let cropLoaded = false;
+
+function viewportSize() {
+  const r = viewport.getBoundingClientRect();
+  return { w: r.width, h: r.height };
+}
+function maxAllowedScale() { return coverScale * 4; }
+function sliderToScale(v) {
+  const span = Math.max(coverScale - fitScale, 0.0001);
+  if (v <= 100) return fitScale + span * (v / 100);
+  return coverScale + (coverScale * 3) * ((v - 100) / 100);
+}
+function scaleToSlider(s) {
+  const span = Math.max(coverScale - fitScale, 0.0001);
+  if (s <= coverScale) return 100 * (s - fitScale) / span;
+  return 100 + 100 * (s - coverScale) / (coverScale * 3);
+}
+function clampAxis(viewSize, imgSize) {
+  if (imgSize <= viewSize) {
+    const centered = (viewSize - imgSize) / 2;
+    return { min: centered, max: centered };
+  }
+  return { min: viewSize - imgSize, max: 0 };
+}
+function clampTranslate() {
+  const { w, h } = viewportSize();
+  const bx = clampAxis(w, natW * scale);
+  const by = clampAxis(h, natH * scale);
+  tx = Math.max(bx.min, Math.min(bx.max, tx));
+  ty = Math.max(by.min, Math.min(by.max, ty));
+}
+function applyTransform() {
+  cropImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+}
+function setScale(newScale, centerX, centerY) {
+  const { w, h } = viewportSize();
+  const cx = centerX === undefined ? w / 2 : centerX;
+  const cy = centerY === undefined ? h / 2 : centerY;
+  const imgX = (cx - tx) / scale;
+  const imgY = (cy - ty) / scale;
+  scale = Math.max(fitScale, Math.min(maxAllowedScale(), newScale));
+  tx = cx - imgX * scale;
+  ty = cy - imgY * scale;
+  clampTranslate();
+  applyTransform();
+  zoomSlider.value = Math.round(scaleToSlider(scale));
+}
+function loadCropImage(src) {
+  cropLoaded = false;
+  photoRemoved = false;
+  const probe = new Image();
+  probe.onload = () => {
+    natW = probe.naturalWidth;
+    natH = probe.naturalHeight;
+    cropImg.src = src;
+    const { w, h } = viewportSize();
+    fitScale = Math.min(w / natW, h / natH);
+    coverScale = Math.max(w / natW, h / natH);
+    scale = coverScale;
+    tx = (w - natW * scale) / 2;
+    ty = (h - natH * scale) / 2;
+    clampTranslate();
+    applyTransform();
+    zoomSlider.value = Math.round(scaleToSlider(scale));
+    cropLoaded = true;
+  };
+  probe.src = src;
+}
+
+let dragging = false, dragStartX = 0, dragStartY = 0, dragStartTx = 0, dragStartTy = 0;
+viewport.addEventListener('pointerdown', (e) => {
+  if (!cropLoaded) return;
+  dragging = true;
+  viewport.classList.add('dragging');
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  dragStartTx = tx; dragStartTy = ty;
+  viewport.setPointerCapture(e.pointerId);
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  tx = dragStartTx + (e.clientX - dragStartX);
+  ty = dragStartTy + (e.clientY - dragStartY);
+  clampTranslate();
+  applyTransform();
+});
+function endDrag() { dragging = false; viewport.classList.remove('dragging'); }
+viewport.addEventListener('pointerup', endDrag);
+viewport.addEventListener('pointercancel', endDrag);
+viewport.addEventListener('pointerleave', endDrag);
+
+viewport.addEventListener('wheel', (e) => {
+  if (!cropLoaded) return;
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+  setScale(scale * factor, cx, cy);
+}, { passive: false });
+
+let pinchStartDist = 0, pinchStartScale = 1, pinchStartTx = 0, pinchStartTy = 0, pinchStartCx = 0, pinchStartCy = 0;
+function touchDist(t0, t1) { return Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY); }
+function touchMid(t0, t1, rect) { return { x: (t0.clientX + t1.clientX) / 2 - rect.left, y: (t0.clientY + t1.clientY) / 2 - rect.top }; }
+
+viewport.addEventListener('touchstart', (e) => {
+  if (!cropLoaded) return;
+  if (e.touches.length === 2) {
+    dragging = false;
+    const rect = viewport.getBoundingClientRect();
+    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+    pinchStartScale = scale;
+    pinchStartTx = tx; pinchStartTy = ty;
+    const mid = touchMid(e.touches[0], e.touches[1], rect);
+    pinchStartCx = mid.x; pinchStartCy = mid.y;
+  }
+}, { passive: true });
+
+viewport.addEventListener('touchmove', (e) => {
+  if (!cropLoaded || e.touches.length !== 2) return;
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const newDist = touchDist(e.touches[0], e.touches[1]);
+  const ratio = newDist / (pinchStartDist || newDist);
+  const newScale = Math.max(fitScale, Math.min(maxAllowedScale(), pinchStartScale * ratio));
+  const mid = touchMid(e.touches[0], e.touches[1], rect);
+  const imgX = (pinchStartCx - pinchStartTx) / pinchStartScale;
+  const imgY = (pinchStartCy - pinchStartTy) / pinchStartScale;
+  scale = newScale;
+  tx = mid.x - imgX * scale;
+  ty = mid.y - imgY * scale;
+  clampTranslate();
+  applyTransform();
+  zoomSlider.value = Math.round(scaleToSlider(scale));
+}, { passive: false });
+
+zoomSlider.addEventListener('input', () => {
+  if (!cropLoaded) return;
+  setScale(sliderToScale(Number(zoomSlider.value)));
+});
+
+function renderCropToBlob(outW, outH) {
+  return new Promise((resolve) => {
+    const { w, h } = viewportSize();
+    const sx = -tx / scale, sy = -ty / scale;
+    const sw = w / scale, sh = h / scale;
+    const canvas = document.createElement('canvas');
+    canvas.width = outW; canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#E7E3DC';
+    ctx.fillRect(0, 0, outW, outH);
+    const destX = tx > 0 ? (tx / w) * outW : 0;
+    const destY = ty > 0 ? (ty / h) * outH : 0;
+    const destW = outW - (Math.max(0, tx) + Math.max(0, w - (tx + natW * scale))) / w * outW;
+    const destH = outH - (Math.max(0, ty) + Math.max(0, h - (ty + natH * scale))) / h * outH;
+    const clampedSx = Math.max(0, sx), clampedSy = Math.max(0, sy);
+    const clampedSw = Math.min(natW, sx + sw) - clampedSx;
+    const clampedSh = Math.min(natH, sy + sh) - clampedSy;
+    ctx.drawImage(cropImg, clampedSx, clampedSy, clampedSw, clampedSh, destX, destY, destW, destH);
+    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+  });
+}
+
+/* ---------- Page data ---------- */
+async function loadAll() {
+  const res = await fetch('/api/story-content');
+  storyContent = await res.json();
+
+  document.getElementById('f-eyebrow').value = storyContent.eyebrow || '';
+  document.getElementById('f-heading').value = storyContent.heading || '';
+  document.getElementById('f-para1').value = storyContent.paragraph_1 || '';
+  document.getElementById('f-para2').value = storyContent.paragraph_2 || '';
+  document.getElementById('f-note').value = storyContent.note || '';
+
+  if (storyContent.image_url) {
+    viewport.style.display = '';
+    loadCropImage(storyContent.image_url);
+  } else {
+    cropLoaded = false;
+    cropImg.src = '';
+  }
+}
+
+document.getElementById('hero-upload-btn').addEventListener('click', () => {
+  document.getElementById('hero-file').click();
+});
+document.getElementById('hero-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  loadCropImage(URL.createObjectURL(file));
+});
+document.getElementById('remove-photo-link').addEventListener('click', () => {
+  cropLoaded = false;
+  photoRemoved = true;
+  cropImg.src = '';
+  document.getElementById('status-msg').textContent = 'Photo will be removed when you save.';
+  document.getElementById('status-msg').style.color = '';
+});
+
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('status-msg');
+  const saveBtn = document.getElementById('save-btn');
+  msgEl.style.color = '';
+  saveBtn.disabled = true;
+
+  try {
+    let imageUrl = storyContent.image_url || '';
+    if (photoRemoved) {
+      imageUrl = '';
+    } else if (cropLoaded) {
+      msgEl.textContent = 'Rendering photo...';
+      const blob = await renderCropToBlob(1000, 1250);
+      if (blob) {
+        msgEl.textContent = 'Uploading photo...';
+        const fd = new FormData();
+        fd.append('file', new File([blob], 'story.jpg', { type: 'image/jpeg' }));
+        const uploadRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          msgEl.textContent = uploadData.error || 'Photo upload failed — try again.';
+          msgEl.style.color = 'var(--staff-danger)';
+          return;
+        }
+        imageUrl = uploadData.url;
+      }
+    }
+
+    msgEl.textContent = 'Saving...';
+    const payload = {
+      eyebrow: document.getElementById('f-eyebrow').value.trim(),
+      heading: document.getElementById('f-heading').value.trim(),
+      paragraph_1: document.getElementById('f-para1').value.trim(),
+      paragraph_2: document.getElementById('f-para2').value.trim(),
+      note: document.getElementById('f-note').value.trim(),
+      image_url: imageUrl
+    };
+    const res = await fetchWithTimeout('/api/story-content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }, 15000);
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.textContent = data.error || 'Something went wrong saving that.';
+      msgEl.style.color = 'var(--staff-danger)';
+      return;
+    }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved — Story page updated.';
+    await loadAll();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      msgEl.textContent = 'That timed out — try again.';
+    } else {
+      msgEl.textContent = 'Something went wrong: ' + err.message;
+    }
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+loadAll();
+</script>
+</body>
+</html>
