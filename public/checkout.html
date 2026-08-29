@@ -58,9 +58,19 @@
           </div>
           <div class="field-group" style="max-width:220px;"><label for="co-postcode">Postcode</label><input type="text" id="co-postcode" required /></div>
           <div class="field-group"><label for="co-notes">Order notes (optional)</label><textarea id="co-notes" rows="3" placeholder="Gift wrapping, delivery instructions, anything we should know"></textarea></div>
-          <button type="submit" class="btn btn-primary" style="width:100%;" id="checkout-submit-btn">Continue to Payment</button>
+          <p class="muted" style="font-size:0.85rem;">Fill in your details above, then pay with PayPal below.</p>
+          <div id="paypal-button-container"></div>
+          <p id="payments-offline-note" class="muted" style="display:none; font-size:0.9rem; padding:14px; border:1px solid rgba(61,69,75,0.2); border-radius:2px;">Online payment isn't switched on yet — please check back soon, or get in touch to place this order another way.</p>
           <p class="muted" style="margin-top:14px; font-size:0.85rem;" id="checkout-note"></p>
         </form>
+
+        <div id="checkout-success" style="display:none;">
+          <span class="eyebrow">Thank you</span>
+          <h3 style="margin-top:0;">Order Placed</h3>
+          <p>Your order <strong id="success-order-id"></strong> is confirmed — total <strong id="success-order-total"></strong>.</p>
+          <p class="muted">We'll get it packed up and posted out. A confirmation has been recorded against the email you gave us.</p>
+          <a href="shop.html" class="btn btn-outline">Continue Shopping</a>
+        </div>
       </div>
 
       <div>
@@ -111,6 +121,7 @@
 
 <script src="assets/js/main.js"></script>
 <script src="assets/js/cart.js"></script>
+<script>window.PAYPAL_CLIENT_ID = "<!--PAYPAL_CLIENT_ID-->";</script>
 <script>
 function renderCheckoutSummary() {
   const items = readCart();
@@ -142,7 +153,7 @@ function renderCheckoutSummary() {
   `).join('');
 
   const subtotal = cartTotal(items);
-  const shipping = UK_SHIPPING_FLAT;
+  const shipping = items.length ? UK_SHIPPING_FLAT : 0;
   const total = subtotal + shipping;
   document.getElementById('co-subtotal').textContent = '£' + subtotal.toFixed(2);
   document.getElementById('co-shipping').textContent = '£' + shipping.toFixed(2);
@@ -150,12 +161,106 @@ function renderCheckoutSummary() {
 }
 renderCheckoutSummary();
 
-document.getElementById('checkout-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const noteEl = document.getElementById('checkout-note');
-  noteEl.style.color = '';
-  noteEl.textContent = "Payment isn't connected yet — this is a preview of checkout. Your order hasn't been placed.";
-});
+// Native form submission is never used — payment is triggered by the
+// PayPal button below — but prevent Enter-to-submit from doing anything odd.
+document.getElementById('checkout-form').addEventListener('submit', (e) => e.preventDefault());
+
+function setCheckoutNote(text, isError) {
+  const el = document.getElementById('checkout-note');
+  el.textContent = text;
+  el.style.color = isError ? 'var(--charcoal)' : '';
+}
+
+function validateCheckoutForm() {
+  const required = ['co-name', 'co-email', 'co-address1', 'co-city', 'co-postcode'];
+  for (const id of required) {
+    const el = document.getElementById(id);
+    if (!el.value.trim()) {
+      setCheckoutNote('Please fill in ' + el.previousElementSibling.textContent.replace(' (optional)', '').toLowerCase() + ' before paying.', true);
+      el.focus();
+      return false;
+    }
+  }
+  setCheckoutNote('');
+  return true;
+}
+
+function collectCustomer() {
+  return {
+    name: document.getElementById('co-name').value.trim(),
+    email: document.getElementById('co-email').value.trim(),
+    address_line1: document.getElementById('co-address1').value.trim(),
+    address_line2: document.getElementById('co-address2').value.trim(),
+    city: document.getElementById('co-city').value.trim(),
+    county: document.getElementById('co-county').value.trim(),
+    postcode: document.getElementById('co-postcode').value.trim(),
+    notes: document.getElementById('co-notes').value.trim(),
+  };
+}
+
+function showCheckoutSuccess(orderId, total) {
+  document.getElementById('checkout-form').style.display = 'none';
+  document.getElementById('checkout-empty').style.display = 'none';
+  document.getElementById('success-order-id').textContent = '#' + orderId;
+  document.getElementById('success-order-total').textContent = '£' + Number(total).toFixed(2);
+  document.getElementById('checkout-success').style.display = 'block';
+  clearCart();
+}
+
+function initPaypalButtons() {
+  if (typeof paypal === 'undefined') { showPaymentsOffline(); return; }
+  paypal.Buttons({
+    style: { layout: 'vertical', color: 'gold', label: 'paypal' },
+    createOrder: async function () {
+      if (!validateCheckoutForm()) throw new Error('validation_failed');
+      const res = await fetch('/api/paypal/create-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer: collectCustomer(), items: readCart().map(i => ({ id: i.id, qty: i.qty })) })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.orderID) {
+        setCheckoutNote(data.message || 'Could not start payment — please try again.', true);
+        throw new Error(data.error || 'create_failed');
+      }
+      return data.orderID;
+    },
+    onApprove: async function (data) {
+      setCheckoutNote('Confirming your payment…');
+      const res = await fetch('/api/paypal/capture-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderID: data.orderID })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        setCheckoutNote(result.message || 'Payment could not be completed — please try again.', true);
+        if (result.item) { removeFromCart(result.item.id); renderCheckoutSummary(); }
+        return;
+      }
+      showCheckoutSuccess(result.orderId, result.total);
+    },
+    onError: function () {
+      setCheckoutNote("Something went wrong with PayPal — please try again.", true);
+    },
+    onCancel: function () {
+      setCheckoutNote('Payment cancelled — your cart is unchanged.');
+    },
+  }).render('#paypal-button-container');
+}
+
+function showPaymentsOffline() {
+  document.getElementById('paypal-button-container').style.display = 'none';
+  document.getElementById('payments-offline-note').style.display = 'block';
+}
+
+if (window.PAYPAL_CLIENT_ID) {
+  const sdk = document.createElement('script');
+  sdk.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(window.PAYPAL_CLIENT_ID) + '&currency=GBP&intent=capture';
+  sdk.onload = initPaypalButtons;
+  sdk.onerror = showPaymentsOffline;
+  document.body.appendChild(sdk);
+} else {
+  showPaymentsOffline();
+}
 </script>
 </body>
 </html>

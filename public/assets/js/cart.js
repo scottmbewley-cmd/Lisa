@@ -55,6 +55,10 @@ function removeFromCart(id) {
   writeCart(readCart().filter(i => String(i.id) !== String(id)));
 }
 
+function clearCart() {
+  writeCart([]);
+}
+
 function renderBadge() {
   const badge = document.getElementById('cart-count');
   if (!badge) return;

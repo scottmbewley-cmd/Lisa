@@ -561,6 +561,15 @@ async function handleCareContent(request, env) {
   }
   return json({ error: "Method not allowed" }, 405);
 }
+// Checkout is server-rendered only so the (non-secret) PayPal client id can
+// be injected — checkout.html's JS uses it to decide whether to load the
+// PayPal SDK at all, or show a graceful "payments aren't live yet" state.
+async function renderCheckoutPage(request, env) {
+  const template = await (await env.ASSETS.fetch(new Request(new URL("/checkout.html", request.url)))).text();
+  const html = template.replace("<!--PAYPAL_CLIENT_ID-->", escapeHtml(env.PAYPAL_CLIENT_ID || ""));
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function handleShopProducts(request, env, url) {
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`SELECT id, name, category, sku, quantity, sell_price, photo_url, shop_position FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).all();
@@ -724,6 +733,184 @@ async function confirmOrder(env, input) {
   return { success: true, orderId, subtotal, shipping, total };
 }
 
+// ===== PayPal Orders API v2 =====
+// Credentials come from env.PAYPAL_CLIENT_ID / PAYPAL_SECRET / PAYPAL_MODE,
+// set with `wrangler secret put` — never hardcoded, never logged. Until
+// they're set, paypalConfigured() is false and both endpoints below return
+// a clean "payments aren't live yet" response instead of attempting any
+// PayPal call.
+function paypalConfigured(env) {
+  return !!(env.PAYPAL_CLIENT_ID && env.PAYPAL_SECRET);
+}
+
+function paypalBaseUrl(env) {
+  return env.PAYPAL_MODE === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+}
+
+async function paypalAccessToken(env) {
+  const auth = btoa(env.PAYPAL_CLIENT_ID + ":" + env.PAYPAL_SECRET);
+  const res = await fetch(paypalBaseUrl(env) + "/v1/oauth2/token", {
+    method: "POST",
+    headers: { "Authorization": "Basic " + auth, "Content-Type": "application/x-www-form-urlencoded" },
+    body: "grant_type=client_credentials",
+  });
+  if (!res.ok) throw new Error("PayPal auth failed");
+  const data = await res.json();
+  return data.access_token;
+}
+
+// Recomputes subtotal/total from LIVE inventory prices for the given cart
+// lines — never trusts a client-submitted price. Also rejects up front if
+// any line already exceeds current stock, so we don't send a customer to
+// PayPal for a cart that's doomed to fail at capture time. This is a
+// read-only availability check (no decrement) — the real, race-safe
+// guard is confirmOrder()'s guarded UPDATE at capture time.
+async function priceCartLines(env, items) {
+  const lines = mergeCartLines(items);
+  if (!lines.length) return { error: "empty_cart" };
+  const priced = [];
+  for (const line of lines) {
+    const row = await env.DB.prepare(`SELECT id, sku, name, category, sell_price, quantity FROM inventory WHERE id = ?1`).bind(line.id).first();
+    if (!row || Number(row.quantity) < line.qty) {
+      return { error: "item_unavailable", item: row ? { id: row.id, name: row.name, sku: row.sku } : { id: line.id } };
+    }
+    priced.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, price: Number(row.sell_price) || 0 });
+  }
+  const subtotal = priced.reduce((sum, it) => sum + it.price * it.qty, 0);
+  const shipping = UK_SHIPPING_FLAT;
+  return { items: priced, subtotal, shipping, total: subtotal + shipping };
+}
+
+async function handlePaypalCreateOrder(request, env) {
+  if (!paypalConfigured(env)) {
+    return json({ error: "payments_not_live", message: "Online payment isn't switched on yet — please check back soon." }, 503);
+  }
+  const b = await request.json().catch(() => ({}));
+  const c = b.customer || {};
+  const missing = ["name", "email", "address_line1", "city", "postcode"].filter(f => !String(c[f] || "").trim());
+  if (missing.length) return json({ error: "missing_fields", message: "Missing: " + missing.join(", ") }, 400);
+
+  const priced = await priceCartLines(env, b.items);
+  if (priced.error) return json(priced, priced.error === "empty_cart" ? 400 : 409);
+
+  let token;
+  try {
+    token = await paypalAccessToken(env);
+  } catch (e) {
+    return json({ error: "paypal_unreachable", message: "Could not start payment — please try again shortly." }, 502);
+  }
+
+  const ppRes = await fetch(paypalBaseUrl(env) + "/v2/checkout/orders", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      intent: "CAPTURE",
+      purchase_units: [{
+        amount: {
+          currency_code: "GBP",
+          value: priced.total.toFixed(2),
+          breakdown: {
+            item_total: { currency_code: "GBP", value: priced.subtotal.toFixed(2) },
+            shipping: { currency_code: "GBP", value: priced.shipping.toFixed(2) },
+          },
+        },
+        items: priced.items.map(it => ({
+          name: it.name.slice(0, 127),
+          quantity: String(it.qty),
+          unit_amount: { currency_code: "GBP", value: it.price.toFixed(2) },
+        })),
+      }],
+    }),
+  });
+  if (!ppRes.ok) {
+    return json({ error: "paypal_create_failed", message: "Could not start payment — please try again." }, 502);
+  }
+  const ppData = await ppRes.json();
+
+  await env.DB.prepare(
+    `INSERT INTO pending_orders (paypal_order_id, customer_json, items_json, subtotal, shipping, total) VALUES (?1,?2,?3,?4,?5,?6)`
+  ).bind(
+    ppData.id,
+    JSON.stringify({ name: c.name, email: c.email, address_line1: c.address_line1, address_line2: c.address_line2 || "", city: c.city, county: c.county || "", postcode: c.postcode, notes: c.notes || "" }),
+    JSON.stringify(priced.items.map(it => ({ id: it.id, qty: it.qty }))),
+    priced.subtotal, priced.shipping, priced.total
+  ).run();
+
+  return json({ orderID: ppData.id });
+}
+
+async function handlePaypalCaptureOrder(request, env) {
+  if (!paypalConfigured(env)) {
+    return json({ error: "payments_not_live", message: "Online payment isn't switched on yet — please check back soon." }, 503);
+  }
+  const b = await request.json().catch(() => ({}));
+  const paypalOrderId = b.orderID;
+  if (!paypalOrderId) return json({ error: "orderID required" }, 400);
+
+  const pending = await env.DB.prepare(`SELECT * FROM pending_orders WHERE paypal_order_id = ?1`).bind(paypalOrderId).first();
+  if (!pending) return json({ error: "session_expired", message: "This payment session has expired — please start checkout again." }, 404);
+
+  let token;
+  try {
+    token = await paypalAccessToken(env);
+  } catch (e) {
+    return json({ error: "paypal_unreachable", message: "Could not confirm payment — please try again shortly." }, 502);
+  }
+
+  const capRes = await fetch(paypalBaseUrl(env) + "/v2/checkout/orders/" + encodeURIComponent(paypalOrderId) + "/capture", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json",
+      "PayPal-Request-Id": "capture-" + paypalOrderId, // idempotency: safe if this call is retried
+    },
+  });
+  const capData = await capRes.json().catch(() => ({}));
+  const capture = capData.purchase_units && capData.purchase_units[0] && capData.purchase_units[0].payments && capData.purchase_units[0].payments.captures && capData.purchase_units[0].payments.captures[0];
+
+  if (!capRes.ok || !capture || capture.status !== "COMPLETED") {
+    return json({ error: "payment_not_completed", message: "Your payment didn't go through — please try again." }, 402);
+  }
+
+  const capturedAmount = Number(capture.amount && capture.amount.value);
+  if (Math.abs(capturedAmount - pending.total) > 0.01) {
+    // Should never happen — the amount was fixed at create-order time. If it
+    // does, don't touch stock or create an order; this needs a human to look at it.
+    return json({ error: "amount_mismatch", message: "Something went wrong confirming your payment — please contact us and we'll sort it out." }, 500);
+  }
+
+  const result = await confirmOrder(env, {
+    customer: JSON.parse(pending.customer_json),
+    items: JSON.parse(pending.items_json),
+    paypal_order_id: paypalOrderId,
+    paypal_capture_id: capture.id,
+  });
+
+  if (!result.success) {
+    // Payment already captured but we can't fulfil it — refund what we took.
+    let refunded = false;
+    try {
+      const refundRes = await fetch(paypalBaseUrl(env) + "/v2/payments/captures/" + encodeURIComponent(capture.id) + "/refund", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      });
+      refunded = refundRes.ok;
+    } catch (e) { /* best-effort — pending row is kept below either way for staff follow-up */ }
+
+    return json({
+      success: false,
+      error: result.error,
+      item: result.item,
+      refunded,
+      message: (result.item ? ('"' + result.item.name + '" just sold out. ') : 'That item just sold out. ') +
+        (refunded ? "You have not been charged." : "Your payment has been captured — please contact us and we'll refund you right away."),
+    }, 409);
+  }
+
+  await env.DB.prepare(`DELETE FROM pending_orders WHERE paypal_order_id = ?1`).bind(paypalOrderId).run();
+  return json({ success: true, orderId: result.orderId, total: result.total });
+}
+
 async function handleOrders(request, env, url) {
   if (request.method === "GET") {
     const id = url.searchParams.get("id");
@@ -783,6 +970,14 @@ export default {
     // Login endpoint is always public
     if (path === "/api/login" && request.method === "POST") {
       return handleLogin(request, env);
+    }
+
+    // Checkout/payment endpoints are customer-facing — no staff session exists at checkout
+    if (path === "/api/paypal/create-order" && request.method === "POST") {
+      return handlePaypalCreateOrder(request, env);
+    }
+    if (path === "/api/paypal/capture-order" && request.method === "POST") {
+      return handlePaypalCaptureOrder(request, env);
     }
 
     // Uploaded images are served publicly straight from R2
@@ -877,6 +1072,15 @@ export default {
         return await renderShopPage(request, env);
       } catch (e) {
         return json({ error: "Shop is temporarily unavailable" }, 500);
+      }
+    }
+
+    // Checkout page is server-rendered to inject the PayPal client id
+    if (path === "/checkout.html" && request.method === "GET") {
+      try {
+        return await renderCheckoutPage(request, env);
+      } catch (e) {
+        return env.ASSETS.fetch(request);
       }
     }
 
