@@ -85,16 +85,8 @@
   <p class="staff-muted">Revenue, profit, and expenditure for a period. Gross Profit is Revenue minus the cost of what actually sold — buying stock is a separate cash-flow figure, shown on its own below, never subtracted from profit directly.</p>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" style="margin-top:0;">All Invoices</h3>
-    <p class="staff-muted" style="font-size:0.85rem;">Every invoice ever raised, in numerical order. Scroll to browse, or click one to see the full breakdown.</p>
-    <div id="ledger-status" class="staff-muted" style="font-size:0.85rem; margin-bottom:10px;">Loading…</div>
-    <div id="ledger-table-wrap" style="max-height:420px; overflow-y:auto; border:1px solid var(--staff-line); border-radius:var(--staff-radius);"></div>
-    <div id="ledger-detail-wrap"></div>
-  </div>
-
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" style="margin-top:0;">Find an Invoice</h3>
-    <p class="staff-muted" style="font-size:0.85rem;">Search by invoice number, customer name, email, or postcode — for refunds, returns, and HMRC records. Add a date range to narrow it down.</p>
+    <h3 class="staff-serif" style="margin-top:0;">Invoices</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">Search by invoice number, customer name, email, or postcode — for refunds, returns, and HMRC records. Or browse everything below, grouped by month.</p>
     <div class="inv-search-row">
       <div class="staff-field"><label>Search</label><input type="text" id="inv-q" placeholder="e.g. INV-0004, Jane Smith, jane@email.com, SO41 …" /></div>
       <div class="staff-field"><label>From (optional)</label><input type="date" id="inv-from" /></div>
@@ -103,6 +95,13 @@
     </div>
     <div id="inv-search-status"></div>
     <div id="inv-results-wrap"></div>
+
+    <div id="ledger-browse-wrap">
+      <h4 class="staff-serif" style="margin:22px 0 8px;">Browse All</h4>
+      <div id="ledger-status" class="staff-muted" style="font-size:0.85rem; margin-bottom:10px;">Loading…</div>
+      <div id="ledger-groups-wrap"></div>
+    </div>
+
     <div id="inv-detail-wrap"></div>
   </div>
 
@@ -425,8 +424,6 @@ document.getElementById('save-entry-btn').addEventListener('click', async () => 
   }
 });
 
-let lastInvoiceMatches = [];
-
 function invoiceRowHtml(o) {
   return '<tr class="orders-row" data-id="' + o.id + '">' +
     '<td>' + esc(o.invoice_number || ('#' + o.id)) + '</td>' +
@@ -460,42 +457,86 @@ function invoiceDetailHtml(o, items) {
     '</div>';
 }
 
-function renderInvoiceDetail(match) {
-  const o = match.order, items = match.items;
-  document.querySelectorAll('#inv-results-wrap .orders-row').forEach(function (r) {
-    r.classList.toggle('selected', r.dataset.id === String(o.id));
-  });
-  document.getElementById('inv-detail-wrap').innerHTML = invoiceDetailHtml(o, items);
+function invoiceDetailHtml(o, items) {
+  const timelineParts = ['<strong style="color:var(--staff-ok);">Paid</strong> ' + fmtDateTime(o.created_at)];
+  if (o.posted_at) timelineParts.push('Posted ' + fmtDateTime(o.posted_at));
+  if (o.cancelled_at) timelineParts.push('<span style="color:var(--staff-danger);">Cancelled</span> ' + fmtDateTime(o.cancelled_at));
+  return '' +
+    '<div class="staff-card" style="border-top: 1px solid var(--staff-line); margin-top:14px;">' +
+      '<h4 class="staff-serif" style="margin:0 0 6px;">' + esc(o.invoice_number || ('Order #' + o.id)) + '</h4>' +
+      '<p class="staff-muted" style="font-size:0.85rem; margin:0 0 14px;">' + timelineParts.join(' · ') + '</p>' +
+      '<p style="margin:0 0 4px;"><strong>' + esc(o.customer_name) + '</strong></p>' +
+      '<p class="staff-muted" style="margin:0 0 4px;">' + [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join(', ') + '</p>' +
+      '<p class="staff-muted" style="margin:0 0 14px;">' + esc(o.customer_email) + '</p>' +
+      '<table class="staff-table"><thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>' +
+        items.map(function (it) {
+          return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>';
+        }).join('') +
+        '<tr><td colspan="4" style="text-align:right;">Subtotal</td><td>' + money(o.subtotal) + '</td></tr>' +
+        '<tr><td colspan="4" style="text-align:right;">Shipping</td><td>' + money(o.shipping) + '</td></tr>' +
+        '<tr><td colspan="4" style="text-align:right; font-weight:700;">Total</td><td style="font-weight:700;">' + money(o.total) + '</td></tr>' +
+      '</tbody></table>' +
+    '</div>';
 }
+
+async function openInvoiceDetail(id) {
+  document.querySelectorAll('.orders-row').forEach(function (r) { r.classList.toggle('selected', r.dataset.id === String(id)); });
+  const detailWrap = document.getElementById('inv-detail-wrap');
+  detailWrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem; margin-top:14px;">Loading…</p>';
+  try {
+    const res = await fetch('/api/orders?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!res.ok) { detailWrap.innerHTML = '<p style="color:var(--staff-danger); font-size:0.85rem; margin-top:14px;">' + (data.error || 'Could not load that invoice.') + '</p>'; return; }
+    detailWrap.innerHTML = invoiceDetailHtml(data.order, data.items);
+  } catch (e) {
+    detailWrap.innerHTML = '<p style="color:var(--staff-danger); font-size:0.85rem; margin-top:14px;">Could not load that invoice — check your connection.</p>';
+  }
+}
+
+function monthKey(s) {
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function monthLabel(key) {
+  const parts = key.split('-');
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+let allInvoices = [];
 
 async function loadLedger() {
   const statusEl = document.getElementById('ledger-status');
-  const wrap = document.getElementById('ledger-table-wrap');
+  const wrap = document.getElementById('ledger-groups-wrap');
   statusEl.textContent = 'Loading…';
   try {
     const res = await fetch('/api/orders?sort=invoice');
     const rows = await res.json();
+    allInvoices = rows;
     if (!rows.length) { statusEl.textContent = 'No invoices raised yet.'; wrap.innerHTML = ''; return; }
-    statusEl.textContent = rows.length + ' invoice' + (rows.length === 1 ? '' : 's') + ', oldest first.';
-    wrap.innerHTML = '' +
-      '<table class="staff-table" style="margin:0;">' +
-        '<thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead>' +
-        '<tbody>' + rows.map(invoiceRowHtml).join('') + '</tbody>' +
-      '</table>';
+    statusEl.textContent = rows.length + ' invoice' + (rows.length === 1 ? '' : 's') + ' total.';
+
+    const groups = {};
+    rows.forEach(function (o) {
+      const key = monthKey(o.created_at);
+      (groups[key] = groups[key] || []).push(o);
+    });
+    const sortedKeys = Object.keys(groups).sort().reverse(); // newest month first
+
+    wrap.innerHTML = sortedKeys.map(function (key, idx) {
+      const groupRows = groups[key];
+      return '<details' + (idx === 0 ? ' open' : '') + ' style="margin-bottom:10px; border:1px solid var(--staff-line); border-radius:var(--staff-radius); overflow:hidden;">' +
+        '<summary style="cursor:pointer; padding:12px 16px; font-family:\'Cormorant Garamond\',serif; font-size:1.1rem; background:rgba(255,255,255,0.02);">' + monthLabel(key) + ' <span class="staff-muted" style="font-size:0.8rem;">(' + groupRows.length + ')</span></summary>' +
+        '<div style="max-height:340px; overflow-y:auto;">' +
+          '<table class="staff-table" style="margin:0;">' +
+            '<thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead>' +
+            '<tbody>' + groupRows.map(invoiceRowHtml).join('') + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</details>';
+    }).join('');
+
     wrap.querySelectorAll('.orders-row').forEach(function (row) {
-      row.addEventListener('click', async function () {
-        wrap.querySelectorAll('.orders-row').forEach(function (r) { r.classList.toggle('selected', r === row); });
-        const detailWrap = document.getElementById('ledger-detail-wrap');
-        detailWrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem; margin-top:14px;">Loading…</p>';
-        try {
-          const res = await fetch('/api/orders?id=' + encodeURIComponent(row.dataset.id));
-          const data = await res.json();
-          if (!res.ok) { detailWrap.innerHTML = '<p style="color:var(--staff-danger); font-size:0.85rem; margin-top:14px;">' + (data.error || 'Could not load that invoice.') + '</p>'; return; }
-          detailWrap.innerHTML = invoiceDetailHtml(data.order, data.items);
-        } catch (e) {
-          detailWrap.innerHTML = '<p style="color:var(--staff-danger); font-size:0.85rem; margin-top:14px;">Could not load that invoice — check your connection.</p>';
-        }
-      });
+      row.addEventListener('click', function () { openInvoiceDetail(row.dataset.id); });
     });
   } catch (e) {
     statusEl.textContent = 'Could not load invoices — check your connection and reload.';
@@ -508,9 +549,18 @@ async function runInvoiceSearch() {
   const to = document.getElementById('inv-to').value;
   const statusEl = document.getElementById('inv-search-status');
   const resultsWrap = document.getElementById('inv-results-wrap');
+  const browseWrap = document.getElementById('ledger-browse-wrap');
   document.getElementById('inv-detail-wrap').innerHTML = '';
   statusEl.style.color = '';
-  if (!q) { statusEl.textContent = 'Enter an invoice number, name, email, or postcode to search.'; resultsWrap.innerHTML = ''; return; }
+  if (!q) {
+    // Empty search box means "browse" mode — no error, just show the full
+    // grouped list again instead of a stale search result.
+    statusEl.textContent = '';
+    resultsWrap.innerHTML = '';
+    browseWrap.style.display = '';
+    return;
+  }
+  browseWrap.style.display = 'none';
   statusEl.textContent = 'Searching…';
   try {
     let url = '/api/invoice-search?q=' + encodeURIComponent(q);
@@ -519,21 +569,18 @@ async function runInvoiceSearch() {
     const res = await fetch(url);
     const data = await res.json();
     if (!res.ok) { statusEl.style.color = 'var(--staff-danger)'; statusEl.textContent = data.error || 'Search failed.'; resultsWrap.innerHTML = ''; return; }
-    lastInvoiceMatches = data.orders || [];
-    if (!lastInvoiceMatches.length) { statusEl.textContent = 'No matching invoices.'; resultsWrap.innerHTML = ''; return; }
-    statusEl.textContent = lastInvoiceMatches.length + ' match' + (lastInvoiceMatches.length === 1 ? '' : 'es') + '.';
+    const matches = data.orders || [];
+    if (!matches.length) { statusEl.textContent = 'No matching invoices.'; resultsWrap.innerHTML = ''; return; }
+    statusEl.textContent = matches.length + ' match' + (matches.length === 1 ? '' : 'es') + '.';
     resultsWrap.innerHTML = '' +
       '<table class="staff-table">' +
         '<thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead>' +
-        '<tbody>' + lastInvoiceMatches.map(function (m) { return invoiceRowHtml(m.order); }).join('') + '</tbody>' +
+        '<tbody>' + matches.map(function (m) { return invoiceRowHtml(m.order); }).join('') + '</tbody>' +
       '</table>';
     resultsWrap.querySelectorAll('.orders-row').forEach(function (row) {
-      row.addEventListener('click', function () {
-        const match = lastInvoiceMatches.find(function (m) { return String(m.order.id) === row.dataset.id; });
-        if (match) renderInvoiceDetail(match);
-      });
+      row.addEventListener('click', function () { openInvoiceDetail(row.dataset.id); });
     });
-    if (lastInvoiceMatches.length === 1) renderInvoiceDetail(lastInvoiceMatches[0]);
+    if (matches.length === 1) openInvoiceDetail(matches[0].order.id);
   } catch (e) {
     statusEl.style.color = 'var(--staff-danger)';
     statusEl.textContent = 'Could not search — check your connection and try again.';
