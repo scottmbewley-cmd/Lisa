@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Postage Costs — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Postage Costs · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Postage Costs</h1>
+  <p class="staff-muted">Set here, before a customer ever reaches checkout. This is what they're charged for delivery, and the same figure gets logged automatically as an expense the moment they pay — nothing changes after that point.</p>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Current Postage Cost</h3>
+    <div class="staff-field" style="max-width:180px;">
+      <label>Postage cost (&pound;)</label>
+      <input type="number" min="0" step="0.01" id="s-postage-cost" />
+    </div>
+    <div id="postage-msg" style="font-size:0.85rem; min-height:20px; margin:10px 0;"></div>
+    <button class="staff-btn" id="postage-save-btn">Save Postage Cost</button>
+  </div>
+</main>
+
+<script>
+async function loadPostageCost() {
+  const res = await fetch('/api/delivery-settings');
+  const settings = await res.json();
+  document.getElementById('s-postage-cost').value = settings.postage_cost !== undefined && settings.postage_cost !== null ? settings.postage_cost : '2.50';
+}
+
+document.getElementById('postage-save-btn').addEventListener('click', async function () {
+  const msgEl = document.getElementById('postage-msg');
+  const val = document.getElementById('s-postage-cost').value.trim();
+  msgEl.style.color = '';
+  if (val === '' || Number(val) < 0) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = 'Enter a postage cost of £0.00 or more.'; return; }
+  const btn = this;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/delivery-settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postage_cost: Number(val) })
+    });
+    const data = await res.json();
+    if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not save that.'; return; }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved — applies to orders placed from now on.';
+    await loadPostageCost();
+  } catch (e) {
+    msgEl.style.color = 'var(--staff-danger)';
+    msgEl.textContent = 'Something went wrong: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadPostageCost();
+</script>
+</body>
+</html>

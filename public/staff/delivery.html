@@ -58,17 +58,6 @@
   <p class="staff-muted">Orders that are paid and waiting to be posted. Print a delivery note and a label, then mark it posted.</p>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom:24px;">
-    <h3 class="staff-serif" style="margin-top:0;">Postage</h3>
-    <p class="staff-muted" style="font-size:0.85rem;">Charged to the customer at checkout, and logged as an expense automatically at that same moment — the same figure, both places. Editable any time; changes only apply to orders placed after you save.</p>
-    <div class="staff-field" style="max-width:180px;">
-      <label>Postage cost (£)</label>
-      <input type="number" min="0" step="0.01" id="s-postage-cost" />
-    </div>
-    <div id="postage-msg"></div>
-    <button class="staff-btn outline" id="postage-save-btn">Save Postage Cost</button>
-  </div>
-
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom:24px;">
     <h3 class="staff-serif" style="margin-top:0;">Return Address on Label</h3>
     <div class="toggle-row">
       <input type="checkbox" id="s-toggle" />
@@ -169,31 +158,7 @@ async function loadSettings() {
   document.getElementById('s-fields').style.display = deliverySettings.show_return_address ? '' : 'none';
   document.getElementById('s-name').value = deliverySettings.return_name || '';
   document.getElementById('s-address').value = deliverySettings.return_address || '';
-  document.getElementById('s-postage-cost').value = deliverySettings.postage_cost !== undefined && deliverySettings.postage_cost !== null ? deliverySettings.postage_cost : '2.50';
 }
-
-document.getElementById('postage-save-btn').addEventListener('click', async function () {
-  const msgEl = document.getElementById('postage-msg');
-  const val = document.getElementById('s-postage-cost').value.trim();
-  if (val === '' || Number(val) < 0) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = 'Enter a postage cost of £0.00 or more.'; return; }
-  const btn = this;
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/delivery-settings', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postage_cost: Number(val) })
-    });
-    const data = await res.json();
-    if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not save that.'; return; }
-    msgEl.style.color = 'var(--staff-ok)';
-    msgEl.textContent = 'Saved — applies to orders placed from now on.';
-    await loadSettings();
-  } catch (e) {
-    msgEl.style.color = 'var(--staff-danger)';
-    msgEl.textContent = 'Something went wrong: ' + e.message;
-  } finally {
-    btn.disabled = false;
-  }
-});
 
 document.getElementById('s-toggle').addEventListener('change', function () {
   document.getElementById('s-fields').style.display = this.checked ? '' : 'none';
