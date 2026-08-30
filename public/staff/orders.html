@@ -59,7 +59,7 @@
 
   <div class="status-filter-row" id="status-filters">
     <button class="status-filter-btn active" data-status="">All</button>
-    <button class="status-filter-btn" data-status="paid">Paid</button>
+    <button class="status-filter-btn" data-status="paid">Moved to Delivery</button>
     <button class="status-filter-btn" data-status="posted">Posted</button>
     <button class="status-filter-btn" data-status="cancelled">Cancelled</button>
   </div>
@@ -104,6 +104,7 @@ let activeStatus = '';
 
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function money(n) { return '£' + Number(n || 0).toFixed(2); }
+function statusLabel(s) { return { paid: 'Moved to Delivery', posted: 'Posted', cancelled: 'Cancelled' }[s] || s; }
 function fmtDate(s) {
   if (!s) return '—';
   const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
@@ -120,7 +121,7 @@ async function loadOrders() {
     const rows = await res.json();
     currentOrders = rows;
     if (!rows.length) {
-      statusEl.textContent = 'No orders' + (activeStatus ? ' with status "' + activeStatus + '"' : '') + ' yet.';
+      statusEl.textContent = 'No orders' + (activeStatus ? ' with status "' + statusLabel(activeStatus) + '"' : '') + ' yet.';
       wrap.innerHTML = '';
       return;
     }
@@ -137,7 +138,7 @@ async function loadOrders() {
               '<td class="staff-muted">' + esc(o.postcode) + '</td>' +
               '<td>' + o.item_count + '</td>' +
               '<td>' + money(o.total) + '</td>' +
-              '<td><span class="status-pill ' + esc(o.status) + '">' + esc(o.status) + '</span></td>' +
+              '<td><span class="status-pill ' + esc(o.status) + '">' + statusLabel(o.status) + '</span></td>' +
             '</tr>';
           }).join('') +
         '</tbody>' +
@@ -179,7 +180,7 @@ function renderDetail(data) {
   const detailEl = document.getElementById('order-detail');
   detailEl.style.display = '';
   document.getElementById('detail-title').textContent = 'Order #' + o.id + ' — ' + fmtDate(o.created_at);
-  document.getElementById('detail-status-pill').innerHTML = '<span class="status-pill ' + esc(o.status) + '">' + esc(o.status) + '</span>';
+  document.getElementById('detail-status-pill').innerHTML = '<span class="status-pill ' + esc(o.status) + '">' + statusLabel(o.status) + '</span>';
   document.getElementById('d-name').innerHTML = '<strong>' + esc(o.customer_name) + '</strong>';
   document.getElementById('d-address').innerHTML = [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
   document.getElementById('d-email').textContent = o.customer_email;
