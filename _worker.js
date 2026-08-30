@@ -303,6 +303,17 @@ async function handleAccountingReport(request, env, url) {
      GROUP BY category ORDER BY amount DESC`
   ).bind(from, to).all();
 
+  // Revenue by product category (Ring/Bracelet/Necklace/etc.) — same shape
+  // as the expenditure breakdown, mirrored on the Sales Accounting page.
+  // Uses order_items.category, snapshotted at sale time, so a later
+  // category rename on an inventory item never rewrites historical sales.
+  const { results: salesByCategory } = await env.DB.prepare(
+    `SELECT oi.category as category, COALESCE(SUM(oi.line_total),0) as amount
+     FROM order_items oi JOIN orders o ON o.id = oi.order_id
+     WHERE o.status != 'cancelled' AND date(o.created_at) BETWEEN ?1 AND ?2
+     GROUP BY oi.category ORDER BY amount DESC`
+  ).bind(from, to).all();
+
   const stockRow = byCategory.find(r => r.category === "Inventory Stock");
   const stockCashSpent = stockRow ? Number(stockRow.amount) : 0;
   const operatingExpenses = byCategory.filter(r => r.category !== "Inventory Stock").reduce((sum, r) => sum + Number(r.amount), 0);
@@ -317,6 +328,7 @@ async function handleAccountingReport(request, env, url) {
     revenue, order_count: revRow.order_count, cogs, gross_profit: grossProfit,
     operating_expenses: operatingExpenses, net_profit: netProfit, stock_cash_spent: stockCashSpent,
     expense_by_category: byCategory.map(r => ({ category: r.category, amount: Number(r.amount) })),
+    sales_by_category: salesByCategory.map(r => ({ category: r.category, amount: Number(r.amount) })),
   });
 }
 

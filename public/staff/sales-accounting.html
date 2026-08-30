@@ -25,12 +25,27 @@
   .stat-tile .value { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: var(--staff-white); margin-top: 6px; }
   .stat-tile.gold .value { color: var(--staff-gold); }
 
+  .cat-filter-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; }
+  .cat-filter-row label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--staff-white-dim); }
+  .cat-filter-row input[type="checkbox"] { width: auto; }
+  .cat-filter-total { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; color: var(--staff-gold); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--staff-line); }
+
   .inv-search-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 14px; align-items: end; }
   .inv-search-row .staff-field { margin-bottom: 0; }
   #inv-search-status { font-size: 0.85rem; min-height: 20px; margin: 12px 0 0; }
   .orders-row { cursor: pointer; }
   .orders-row:hover td { background: rgba(255,255,255,0.03); }
   .orders-row.selected td { background: rgba(212,175,106,0.06); }
+
+  @media print {
+    body.staff-body > *:not(#print-area) { display: none !important; }
+    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
+    #print-area th { background: #eee; }
+    #print-area .total-row td { background: #f5f5f5; font-weight: 700; }
+  }
+  .print-only { display: none; }
 </style>
 </head>
 <body class="staff-body">
@@ -66,12 +81,25 @@
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
+      <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+      <button class="staff-btn outline" id="print-report-btn" type="button" style="padding:8px 16px;">Print Report</button>
+    </div>
     <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
     <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px,1fr));">
       <div class="stat-tile"><div class="label">Revenue</div><div class="value" id="stat-revenue">£0.00</div></div>
       <div class="stat-tile gold"><div class="label">Gross Profit</div><div class="value" id="stat-gross">£0.00</div></div>
     </div>
+
+    <h4 class="staff-serif" style="margin:20px 0 10px;">Sales by Category</h4>
+    <p class="staff-muted" style="font-size:0.85rem;">Pick one, several, or all categories to narrow the breakdown and total below.</p>
+    <div class="cat-filter-row" id="cat-filter-row"></div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin:4px 0 14px;">
+      <button class="staff-btn outline" id="cat-filter-all-btn" type="button" style="padding:7px 14px; font-size:0.78rem;">Select all</button>
+      <button class="staff-btn outline" id="cat-filter-none-btn" type="button" style="padding:7px 14px; font-size:0.78rem;">Select none</button>
+    </div>
+    <div id="category-table-wrap"></div>
+    <div id="category-filter-total" class="cat-filter-total"></div>
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
@@ -96,9 +124,30 @@
   </div>
 </main>
 
+<div id="print-area" class="print-only">
+  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Sales Accounting</h2>
+  <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
+  <table><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>
+    <tr><td>Revenue</td><td id="print-revenue">£0.00</td></tr>
+    <tr><td>Gross Profit</td><td id="print-gross">£0.00</td></tr>
+  </tbody></table>
+  <h3 style="font-family:'Cormorant Garamond',serif; margin:18px 0 4px; font-size:1.15rem;">Sales by Category<span id="print-category-scope"></span></h3>
+  <div id="print-category-wrap"></div>
+</div>
+
 <script>
 let activePeriod = 'month';
 let currentFrom = '', currentTo = '';
+let lastSalesCategoryData = [];
+
+const SALES_CATEGORY_LIST = ['Ring', 'Bracelet', 'Necklace', 'Earring', 'Anklet', 'Other'];
+function catFilterId(cat) { return 'cf-' + cat.replace(/\s+/g, '-'); }
+const catFilterRow = document.getElementById('cat-filter-row');
+SALES_CATEGORY_LIST.forEach(cat => {
+  const label = document.createElement('label');
+  label.innerHTML = '<input type="checkbox" id="' + catFilterId(cat) + '" checked> ' + cat;
+  catFilterRow.appendChild(label);
+});
 
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function money(n) { return '£' + Number(n || 0).toFixed(2); }
@@ -164,10 +213,48 @@ async function runReport(from, to) {
     statusEl.textContent = data.order_count + ' order' + (data.order_count === 1 ? '' : 's') + ' in this period.';
     document.getElementById('stat-revenue').textContent = money(data.revenue);
     document.getElementById('stat-gross').textContent = money(data.gross_profit);
+
+    lastSalesCategoryData = data.sales_by_category || [];
+    renderSalesCategoryTable();
+
+    document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
+    document.getElementById('print-revenue').textContent = money(data.revenue);
+    document.getElementById('print-gross').textContent = money(data.gross_profit);
   } catch (e) {
     statusEl.textContent = 'Could not load the report — check your connection and try again.';
   }
 }
+
+function selectedSalesCategoryFilters() {
+  return SALES_CATEGORY_LIST.filter(cat => { const el = document.getElementById(catFilterId(cat)); return el && el.checked; });
+}
+function salesCategoryRowHtml(c) {
+  return '<tr><td>' + esc(c.category) + '</td><td>' + money(c.amount) + '</td></tr>';
+}
+function renderSalesCategoryTable() {
+  const selected = selectedSalesCategoryFilters();
+  const filtered = lastSalesCategoryData.filter(c => selected.includes(c.category));
+  const total = filtered.reduce((sum, c) => sum + Number(c.amount), 0);
+  const allSelected = selected.length === SALES_CATEGORY_LIST.length;
+
+  document.getElementById('category-table-wrap').innerHTML = filtered.length
+    ? '<table class="staff-table"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' + filtered.map(salesCategoryRowHtml).join('') + '</tbody></table>'
+    : '<p class="staff-muted" style="font-size:0.85rem;">No sales in the selected categories for this period.</p>';
+
+  const totalLabel = allSelected ? 'Total (all categories): ' : 'Total for selected (' + selected.length + ' categor' + (selected.length === 1 ? 'y' : 'ies') + '): ';
+  document.getElementById('category-filter-total').textContent = totalLabel + money(total);
+
+  document.getElementById('print-category-scope').textContent = allSelected ? '' : ' — filtered: ' + selected.join(', ');
+  document.getElementById('print-category-wrap').innerHTML = filtered.length
+    ? '<table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' + filtered.map(salesCategoryRowHtml).join('') + '<tr class="total-row"><td>' + esc(totalLabel.replace(/: $/, '')) + '</td><td>' + money(total) + '</td></tr></tbody></table>'
+    : '<p>No sales in the selected categories for this period.</p>';
+}
+
+document.getElementById('cat-filter-row').addEventListener('change', renderSalesCategoryTable);
+document.getElementById('cat-filter-all-btn').addEventListener('click', () => { SALES_CATEGORY_LIST.forEach(cat => { document.getElementById(catFilterId(cat)).checked = true; }); renderSalesCategoryTable(); });
+document.getElementById('cat-filter-none-btn').addEventListener('click', () => { SALES_CATEGORY_LIST.forEach(cat => { document.getElementById(catFilterId(cat)).checked = false; }); renderSalesCategoryTable(); });
+
+document.getElementById('print-report-btn').addEventListener('click', () => window.print());
 
 function invoiceRowHtml(o) {
   return '<tr class="orders-row" data-id="' + o.id + '">' +

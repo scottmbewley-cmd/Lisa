@@ -37,6 +37,16 @@
   .recent-row .amt { white-space: nowrap; font-weight: 600; }
   .recent-row .tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--staff-white-dim); }
   .recent-row .tag.auto { color: var(--staff-gold); }
+
+  @media print {
+    body.staff-body > *:not(#print-area) { display: none !important; }
+    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
+    #print-area th { background: #eee; }
+    #print-area .total-row td { background: #f5f5f5; font-weight: 700; }
+  }
+  .print-only { display: none; }
 </style>
 </head>
 <body class="staff-body">
@@ -72,7 +82,10 @@
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
+      <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+      <button class="staff-btn outline" id="print-report-btn" type="button" style="padding:8px 16px;">Print Report</button>
+    </div>
     <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
 
     <div class="cashflow-note">
@@ -112,6 +125,16 @@
     <div id="recent-entries-wrap"><p class="staff-muted" style="font-size:0.85rem;">Loading…</p></div>
   </div>
 </main>
+
+<div id="print-area" class="print-only">
+  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Expenses Accounting</h2>
+  <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
+  <table><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>
+    <tr><td>Cash Spent on Inventory Stock</td><td id="print-stock-cash">£0.00</td></tr>
+  </tbody></table>
+  <h3 style="font-family:'Cormorant Garamond',serif; margin:18px 0 4px; font-size:1.15rem;">Expenditure by Category<span id="print-category-scope"></span></h3>
+  <div id="print-category-wrap"></div>
+</div>
 
 <script>
 let activePeriod = 'month';
@@ -185,10 +208,17 @@ function renderCategoryTable() {
     : '<p class="staff-muted" style="font-size:0.85rem;">No expenditure in the selected categories for this period.</p>';
   const totalLabel = allSelected ? 'Total (all categories): ' : 'Total for selected (' + selected.length + ' categor' + (selected.length === 1 ? 'y' : 'ies') + '): ';
   document.getElementById('category-filter-total').textContent = totalLabel + money(total);
+
+  document.getElementById('print-category-scope').textContent = allSelected ? '' : ' — filtered: ' + selected.join(', ');
+  document.getElementById('print-category-wrap').innerHTML = filtered.length
+    ? '<table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>' + filtered.map(categoryRowHtml).join('') + '<tr class="total-row"><td>' + esc(totalLabel.replace(/: $/, '')) + '</td><td>' + money(total) + '</td></tr></tbody></table>'
+    : '<p>No expenditure in the selected categories for this period.</p>';
 }
 document.getElementById('cat-filter-row').addEventListener('change', renderCategoryTable);
 document.getElementById('cat-filter-all-btn').addEventListener('click', () => { CATEGORY_FILTER_LIST.forEach(cat => { document.getElementById(catFilterId(cat)).checked = true; }); renderCategoryTable(); });
 document.getElementById('cat-filter-none-btn').addEventListener('click', () => { CATEGORY_FILTER_LIST.forEach(cat => { document.getElementById(catFilterId(cat)).checked = false; }); renderCategoryTable(); });
+
+document.getElementById('print-report-btn').addEventListener('click', () => window.print());
 
 async function runReport(from, to) {
   currentFrom = from; currentTo = to;
@@ -203,6 +233,9 @@ async function runReport(from, to) {
     document.getElementById('stat-stock-cash').textContent = money(data.stock_cash_spent);
     lastCategoryData = data.expense_by_category || [];
     renderCategoryTable();
+
+    document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
+    document.getElementById('print-stock-cash').textContent = money(data.stock_cash_spent);
   } catch (e) {
     statusEl.textContent = 'Could not load the report — check your connection and try again.';
   }
