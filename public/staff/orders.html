@@ -55,7 +55,7 @@
 <main class="staff-main">
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Orders &amp; Sales</h1>
-  <p class="staff-muted">Every order placed and paid for through the site. Click one to see the full address, line items, and print a packing slip.</p>
+  <p class="staff-muted">Every order placed and paid for through the site. Click one to see the full address and line items. Posting and labels are handled in Delivery.</p>
 
   <div class="status-filter-row" id="status-filters">
     <button class="status-filter-btn active" data-status="">All</button>
@@ -93,24 +93,9 @@
     <div id="d-items-wrap"></div>
 
     <div id="status-msg"></div>
-    <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="staff-btn" id="mark-posted-btn">Mark as Posted</button>
-      <button class="staff-btn outline" id="print-slip-btn">Print Packing Slip</button>
-    </div>
+
   </div>
 </main>
-
-<div id="print-area" class="print-only">
-  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Packing Slip</h2>
-  <p id="print-order-no" style="margin:0 0 4px; font-size:1rem;"></p>
-  <p id="print-date" style="margin:0 0 20px; font-size:0.9rem;"></p>
-  <div style="margin-bottom:20px;">
-    <strong>Ship To:</strong>
-    <div id="print-address"></div>
-  </div>
-  <div id="print-table-wrap"></div>
-  <div id="print-notes" style="margin-top:16px; font-size:0.9rem;"></div>
-</div>
 
 <script>
 let currentOrders = [];
@@ -214,49 +199,8 @@ function renderDetail(data) {
     '</table>';
   document.getElementById('d-items-wrap').innerHTML = itemsHtml;
 
-  document.getElementById('mark-posted-btn').style.display = o.status === 'paid' ? '' : 'none';
   document.getElementById('order-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-
-document.getElementById('mark-posted-btn').addEventListener('click', async function () {
-  if (!currentDetail) return;
-  const msgEl = document.getElementById('status-msg');
-  const btn = document.getElementById('mark-posted-btn');
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/orders?id=' + encodeURIComponent(currentDetail.order.id), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'posted' })
-    });
-    const data = await res.json();
-    if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not update that order.'; return; }
-    msgEl.style.color = 'var(--staff-ok)';
-    msgEl.textContent = 'Marked as posted.';
-    await loadOrders();
-    await viewOrder(currentDetail.order.id);
-  } catch (e) {
-    msgEl.style.color = 'var(--staff-danger)';
-    msgEl.textContent = 'Something went wrong — check your connection and try again.';
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-document.getElementById('print-slip-btn').addEventListener('click', function () {
-  if (!currentDetail) return;
-  const o = currentDetail.order, items = currentDetail.items;
-  document.getElementById('print-order-no').textContent = 'Order #' + o.id;
-  document.getElementById('print-date').textContent = fmtDate(o.created_at);
-  document.getElementById('print-address').innerHTML = '<strong>' + esc(o.customer_name) + '</strong><br>' +
-    [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
-  document.getElementById('print-table-wrap').innerHTML = '' +
-    '<table><thead><tr><th>Item</th><th>SKU</th><th>Qty</th></tr></thead><tbody>' +
-      items.map(function (it) {
-        return '<tr><td>' + esc(it.name) + '</td><td>' + esc(it.sku) + '</td><td>' + it.quantity + '</td></tr>';
-      }).join('') +
-    '</tbody></table>';
-  document.getElementById('print-notes').textContent = o.notes ? ('Notes: ' + o.notes) : '';
-  window.print();
-});
 
 loadOrders();
 </script>

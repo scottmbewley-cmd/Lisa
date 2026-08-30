@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Delivery — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .orders-row { cursor: pointer; }
+  .orders-row:hover td { background: rgba(255,255,255,0.03); }
+  .orders-row.selected td { background: rgba(212,175,106,0.06); }
+  #order-detail { margin-top: 24px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 18px; }
+  .detail-block h4 { font-family: 'Cormorant Garamond', serif; color: var(--staff-gold); margin: 0 0 8px; font-size: 1.05rem; }
+  .detail-block p { margin: 0 0 4px; font-size: 0.9rem; }
+  #status-msg { font-size: 0.85rem; min-height: 20px; margin: 10px 0; }
+  #settings-msg { font-size: 0.85rem; min-height: 20px; margin: 10px 0; }
+  .toggle-row { display: flex; align-items: center; gap: 10px; }
+  .toggle-row input[type=checkbox] { width: 18px; height: 18px; }
+
+  @media print {
+    body.staff-body > *:not(#print-area):not(#print-area-label) { display: none !important; }
+    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
+    #print-area th { background: #eee; }
+    #print-area-label { display: none; color: #000; background: #fff; }
+    body.label-mode #print-area { display: none !important; }
+    body.label-mode #print-area-label {
+      display: flex !important; align-items: center; justify-content: center;
+      width: 4in; height: 6in; padding: 0.3in; box-sizing: border-box;
+    }
+    @page { size: auto; margin: 0.4in; }
+  }
+  .print-only { display: none; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Delivery · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Delivery</h1>
+  <p class="staff-muted">Orders that are paid and waiting to be posted. Print a delivery note and a label, then mark it posted.</p>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom:24px;">
+    <h3 class="staff-serif" style="margin-top:0;">Return Address on Label</h3>
+    <div class="toggle-row">
+      <input type="checkbox" id="s-toggle" />
+      <label for="s-toggle" style="margin:0;">Print a return address on the label</label>
+    </div>
+    <div id="s-fields" style="margin-top:14px; display:none;">
+      <div class="staff-field">
+        <label>Return name</label>
+        <input type="text" id="s-name" placeholder="e.g. Evelle" />
+      </div>
+      <div class="staff-field">
+        <label>Return address</label>
+        <textarea id="s-address" rows="3" placeholder="Address to print as the sender on labels"></textarea>
+      </div>
+    </div>
+    <div id="settings-msg"></div>
+    <button class="staff-btn outline" id="settings-save-btn">Save Return Address</button>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <div id="orders-status" class="staff-muted" style="font-size:0.85rem; margin-bottom:10px;">Loading…</div>
+    <div id="orders-table-wrap"></div>
+  </div>
+
+  <div id="order-detail" class="staff-card" style="border-top: 2px solid var(--staff-taupe); display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
+      <h3 class="staff-serif" id="detail-title" style="margin:0;">Order</h3>
+    </div>
+
+    <div class="detail-grid" style="margin-top:18px;">
+      <div class="detail-block">
+        <h4>Ship To</h4>
+        <p id="d-name"></p>
+        <p id="d-address"></p>
+        <p id="d-email" class="staff-muted"></p>
+      </div>
+      <div class="detail-block">
+        <h4>Order Notes</h4>
+        <p id="d-notes" class="staff-muted">—</p>
+      </div>
+    </div>
+
+    <div id="d-items-wrap"></div>
+
+    <div id="status-msg"></div>
+    <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="staff-btn" id="mark-posted-btn">Mark as Posted</button>
+      <button class="staff-btn outline" id="print-note-btn">Print Delivery Note</button>
+      <button class="staff-btn outline" id="print-label-btn">Print Label</button>
+    </div>
+  </div>
+</main>
+
+<div id="print-area" class="print-only">
+  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Delivery Note</h2>
+  <p id="print-order-no" style="margin:0 0 4px; font-size:1rem;"></p>
+  <p id="print-date" style="margin:0 0 20px; font-size:0.9rem;"></p>
+  <div style="margin-bottom:20px;">
+    <strong>Ship To:</strong>
+    <div id="print-address"></div>
+  </div>
+  <div id="print-table-wrap"></div>
+  <div id="print-notes" style="margin-top:16px; font-size:0.9rem;"></div>
+</div>
+
+<div id="print-area-label" class="print-only">
+  <div>
+    <div id="label-from" style="font-size:0.95rem; margin-bottom:24px;"></div>
+    <div style="font-size:0.85rem; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">To:</div>
+    <div id="label-to" style="font-size:1.4rem; line-height:1.5;"></div>
+  </div>
+</div>
+<script>
+let currentOrders = [];
+let currentDetail = null;
+let deliverySettings = {};
+
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function money(n) { return '£' + Number(n || 0).toFixed(2); }
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+async function loadSettings() {
+  const res = await fetch('/api/delivery-settings');
+  deliverySettings = await res.json();
+  document.getElementById('s-toggle').checked = !!deliverySettings.show_return_address;
+  document.getElementById('s-fields').style.display = deliverySettings.show_return_address ? '' : 'none';
+  document.getElementById('s-name').value = deliverySettings.return_name || '';
+  document.getElementById('s-address').value = deliverySettings.return_address || '';
+}
+
+document.getElementById('s-toggle').addEventListener('change', function () {
+  document.getElementById('s-fields').style.display = this.checked ? '' : 'none';
+});
+
+document.getElementById('settings-save-btn').addEventListener('click', async function () {
+  const msgEl = document.getElementById('settings-msg');
+  const btn = this;
+  btn.disabled = true;
+  try {
+    const payload = {
+      show_return_address: document.getElementById('s-toggle').checked,
+      return_name: document.getElementById('s-name').value.trim(),
+      return_address: document.getElementById('s-address').value.trim()
+    };
+    const res = await fetch('/api/delivery-settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not save that.'; return; }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved.';
+    await loadSettings();
+  } catch (e) {
+    msgEl.style.color = 'var(--staff-danger)';
+    msgEl.textContent = 'Something went wrong: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+async function loadOrders() {
+  const statusEl = document.getElementById('orders-status');
+  const wrap = document.getElementById('orders-table-wrap');
+  statusEl.textContent = 'Loading…';
+  try {
+    const res = await fetch('/api/orders?status=paid');
+    const rows = await res.json();
+    currentOrders = rows;
+    if (!rows.length) {
+      statusEl.textContent = 'Nothing waiting to be posted.';
+      wrap.innerHTML = '';
+      document.getElementById('order-detail').style.display = 'none';
+      return;
+    }
+    statusEl.textContent = rows.length + ' order' + (rows.length === 1 ? '' : 's') + ' waiting to be posted.';
+    wrap.innerHTML = '' +
+      '<table class="staff-table">' +
+        '<thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th></tr></thead>' +
+        '<tbody>' +
+          rows.map(function (o) {
+            return '<tr class="orders-row" data-id="' + o.id + '">' +
+              '<td>#' + o.id + '</td>' +
+              '<td class="staff-muted">' + fmtDate(o.created_at) + '</td>' +
+              '<td>' + esc(o.customer_name) + '</td>' +
+              '<td class="staff-muted">' + esc(o.postcode) + '</td>' +
+              '<td>' + o.item_count + '</td>' +
+              '<td>' + money(o.total) + '</td>' +
+            '</tr>';
+          }).join('') +
+        '</tbody>' +
+      '</table>';
+    wrap.querySelectorAll('.orders-row').forEach(function (row) {
+      row.addEventListener('click', function () { viewOrder(row.dataset.id); });
+    });
+  } catch (e) {
+    statusEl.textContent = 'Could not load orders — check your connection and reload.';
+  }
+}
+
+async function viewOrder(id) {
+  document.querySelectorAll('.orders-row').forEach(function (r) { r.classList.toggle('selected', r.dataset.id === String(id)); });
+  const msgEl = document.getElementById('status-msg');
+  msgEl.textContent = '';
+  try {
+    const res = await fetch('/api/orders?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not load that order.'; return; }
+    currentDetail = data;
+    renderDetail(data);
+  } catch (e) {
+    msgEl.style.color = 'var(--staff-danger)';
+    msgEl.textContent = 'Could not load that order — check your connection.';
+  }
+}
+
+function renderDetail(data) {
+  const o = data.order, items = data.items;
+  const detailEl = document.getElementById('order-detail');
+  detailEl.style.display = '';
+  document.getElementById('detail-title').textContent = 'Order #' + o.id + ' — ' + fmtDate(o.created_at);
+  document.getElementById('d-name').innerHTML = '<strong>' + esc(o.customer_name) + '</strong>';
+  document.getElementById('d-address').innerHTML = [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
+  document.getElementById('d-email').textContent = o.customer_email;
+  document.getElementById('d-notes').textContent = o.notes || '—';
+
+  const itemsHtml = '' +
+    '<table class="staff-table">' +
+      '<thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead>' +
+      '<tbody>' +
+        items.map(function (it) {
+          return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>';
+        }).join('') +
+        '<tr><td colspan="4" style="text-align:right;">Subtotal</td><td>' + money(o.subtotal) + '</td></tr>' +
+        '<tr><td colspan="4" style="text-align:right;">Shipping</td><td>' + money(o.shipping) + '</td></tr>' +
+        '<tr><td colspan="4" style="text-align:right; font-weight:700;">Total</td><td style="font-weight:700;">' + money(o.total) + '</td></tr>' +
+      '</tbody>' +
+    '</table>';
+  document.getElementById('d-items-wrap').innerHTML = itemsHtml;
+
+  document.getElementById('order-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+document.getElementById('mark-posted-btn').addEventListener('click', async function () {
+  if (!currentDetail) return;
+  const msgEl = document.getElementById('status-msg');
+  const btn = this;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/orders?id=' + encodeURIComponent(currentDetail.order.id), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'posted' })
+    });
+    const data = await res.json();
+    if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not update that order.'; return; }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Marked as posted.';
+    document.getElementById('order-detail').style.display = 'none';
+    currentDetail = null;
+    await loadOrders();
+  } catch (e) {
+    msgEl.style.color = 'var(--staff-danger)';
+    msgEl.textContent = 'Something went wrong — check your connection and try again.';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('print-note-btn').addEventListener('click', function () {
+  if (!currentDetail) return;
+  document.body.classList.remove('label-mode');
+  const o = currentDetail.order, items = currentDetail.items;
+  document.getElementById('print-order-no').textContent = 'Order #' + o.id;
+  document.getElementById('print-date').textContent = fmtDate(o.created_at);
+  document.getElementById('print-address').innerHTML = '<strong>' + esc(o.customer_name) + '</strong><br>' +
+    [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
+  document.getElementById('print-table-wrap').innerHTML = '' +
+    '<table><thead><tr><th>Item</th><th>SKU</th><th>Qty</th></tr></thead><tbody>' +
+      items.map(function (it) {
+        return '<tr><td>' + esc(it.name) + '</td><td>' + esc(it.sku) + '</td><td>' + it.quantity + '</td></tr>';
+      }).join('') +
+    '</tbody></table>';
+  document.getElementById('print-notes').textContent = o.notes ? ('Notes: ' + o.notes) : '';
+  window.print();
+});
+
+document.getElementById('print-label-btn').addEventListener('click', function () {
+  if (!currentDetail) return;
+  document.body.classList.add('label-mode');
+  const o = currentDetail.order;
+  document.getElementById('label-to').innerHTML = '<strong>' + esc(o.customer_name) + '</strong><br>' +
+    [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
+  if (deliverySettings.show_return_address && (deliverySettings.return_name || deliverySettings.return_address)) {
+    document.getElementById('label-from').innerHTML = esc(deliverySettings.return_name) +
+      (deliverySettings.return_name && deliverySettings.return_address ? '<br>' : '') +
+      esc(deliverySettings.return_address).replace(/\n/g, '<br>');
+    document.getElementById('label-from').style.display = '';
+  } else {
+    document.getElementById('label-from').style.display = 'none';
+  }
+  window.print();
+});
+
+loadSettings();
+loadOrders();
+</script>
+</body>
+</html>

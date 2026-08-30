@@ -189,6 +189,33 @@ async function renderShopPage(request, env) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+async function getDeliverySettings(env) {
+  const { results } = await env.DB.prepare(`SELECT * FROM delivery_settings WHERE id = 1`).all();
+  return results[0] || {};
+}
+
+async function handleDeliverySettings(request, env) {
+  if (request.method === "GET") {
+    return json(await getDeliverySettings(env));
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const fields = ["show_return_address", "return_name", "return_address"];
+    const sets = []; const vals = [];
+    fields.forEach(f => {
+      if (b[f] !== undefined) {
+        sets.push(`${f} = ?`);
+        vals.push(f === "show_return_address" ? (b[f] ? 1 : 0) : b[f]);
+      }
+    });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    await env.DB.prepare(`UPDATE delivery_settings SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
 async function getSocialLinks(env) {
   const { results } = await env.DB.prepare(`SELECT * FROM social_links WHERE id = 1`).all();
   return results[0] || {};
@@ -844,6 +871,7 @@ export default {
       if (path === "/api/contact-content") return handleContactContent(request, env);
       if (path === "/api/care-content") return handleCareContent(request, env);
       if (path === "/api/social-links") return handleSocialLinks(request, env);
+      if (path === "/api/delivery-settings") return handleDeliverySettings(request, env);
       return json({ error: "Not found" }, 404);
     }
 
