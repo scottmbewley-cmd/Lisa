@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stream Plan — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .meta-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+  .meta-grid .full { grid-column: 1 / -1; }
+  .item-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border: 1px solid var(--staff-line); border-radius: 8px; background: var(--staff-card);
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .item-row:hover { border-color: var(--staff-gold); }
+  .item-row.removed { opacity: 0.6; cursor: default; }
+  .item-row .thumb { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+  .item-row .thumb-empty { width: 46px; height: 46px; border-radius: 6px; background: rgba(255,255,255,0.04); flex-shrink: 0; }
+  .item-row .name-col { flex: 1; min-width: 0; }
+  .item-row .name-col h4 { margin: 0; font-size: 0.98rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-row .name-col .price { font-size: 0.82rem; color: var(--staff-white-dim); }
+  .status-pill { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+  .status-pill.done { background: rgba(143,181,138,0.18); color: var(--staff-ok); }
+  .status-pill.pending { background: rgba(255,255,255,0.06); color: var(--staff-white-dim); }
+  .remove-x { background: none; border: none; color: var(--staff-white-dim); font-size: 1.2rem; cursor: pointer; padding: 2px 6px; line-height: 1; }
+  .remove-x:hover { color: var(--staff-danger); }
+
+  .search-panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--staff-line); display: none; }
+  .search-panel.open { display: block; }
+  .search-row { display: flex; gap: 10px; align-items: end; margin-bottom: 12px; flex-wrap: wrap; }
+  .search-row .staff-field { margin-bottom: 0; flex: 1; min-width: 150px; }
+  .search-result-row {
+    display: flex; align-items: center; gap: 12px; padding: 8px 10px;
+    border-bottom: 1px solid var(--staff-line);
+  }
+  .search-result-row .thumb, .search-result-row .thumb-empty { width: 38px; height: 38px; border-radius: 5px; object-fit: cover; flex-shrink: 0; }
+  .search-result-row .thumb-empty { background: rgba(255,255,255,0.04); }
+  .search-result-row .name-col { flex: 1; min-width: 0; font-size: 0.9rem; }
+
+  /* Full-screen presentation overlay */
+  #overlay {
+    display: none; position: fixed; inset: 0; background: var(--staff-bg);
+    z-index: 100; overflow-y: auto;
+  }
+  #overlay.open { display: block; }
+  .overlay-inner { max-width: 640px; margin: 0 auto; padding: 20px 20px 60px; }
+  .overlay-close {
+    display: flex; align-items: center; gap: 8px; background: none; border: none;
+    color: var(--staff-white-dim); font-size: 0.95rem; cursor: pointer; padding: 10px 0; margin-bottom: 10px;
+  }
+  .overlay-close:hover { color: var(--staff-white); }
+  .overlay-photo { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 12px; border: 1px solid var(--staff-line); background: var(--staff-panel); }
+  .overlay-photo-empty { width: 100%; aspect-ratio: 1/1; border-radius: 12px; border: 1px dashed var(--staff-line); display: flex; align-items: center; justify-content: center; color: var(--staff-white-dim); font-size: 2.5rem; }
+  .overlay-category { margin-top: 18px; }
+  .overlay-name { font-size: clamp(1.6rem, 5vw, 2.2rem); margin: 2px 0 10px; }
+  .overlay-price { font-size: 1.6rem; color: var(--staff-gold); font-weight: 600; margin: 0 0 6px; }
+  .overlay-scarcity { font-size: 0.95rem; margin: 0 0 18px; }
+  .overlay-scarcity.low { color: var(--staff-danger); font-weight: 600; }
+  .overlay-scarcity.ok { color: var(--staff-white-dim); }
+  .overlay-desc { font-size: 1.05rem; line-height: 1.5; margin: 0 0 22px; }
+  .overlay-hook-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); margin-bottom: 6px; display: block; }
+  .overlay-hook { width: 100%; min-height: 80px; padding: 12px; border: 1px solid var(--staff-line); background: rgba(255,255,255,0.04); color: var(--staff-white); font-family: inherit; font-size: 1rem; border-radius: 6px; margin-bottom: 8px; }
+  #hook-save-msg { font-size: 0.8rem; color: var(--staff-ok); min-height: 18px; }
+  .overlay-complete-btn { width: 100%; padding: 18px; font-size: 1rem; margin-top: 18px; }
+  .presented-block { margin-top: 18px; padding: 14px; border-radius: 8px; background: rgba(143,181,138,0.1); text-align: center; }
+  .presented-block .tag { color: var(--staff-ok); font-weight: 600; }
+  .undo-link { background: none; border: none; color: var(--staff-white-dim); text-decoration: underline; cursor: pointer; font-size: 0.85rem; margin-top: 8px; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Stream Plan · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="whatnot-prompts.html">&larr; Stream Plans</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Live Whatnot Prompts</span>
+  <h1 class="staff-serif" id="page-heading" style="font-size:clamp(1.8rem,4vw,2.4rem); margin:0 0 16px;">Stream Plan</h1>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 24px;">
+    <div class="meta-grid">
+      <div class="staff-field"><label>Title</label><input type="text" id="f-title" placeholder="e.g. Friday Ring Drop" /></div>
+      <div class="staff-field"><label>Duration (minutes)</label><input type="number" min="0" id="f-duration" placeholder="e.g. 60" /></div>
+      <div class="staff-field full"><label>Planned go-live date &amp; time</label><input type="datetime-local" id="f-planned-at" /></div>
+    </div>
+    <div id="meta-status" style="font-size:0.85rem; min-height:18px;"></div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Items to present</h3>
+    <div id="items-wrap"><p class="staff-muted">Loading…</p></div>
+
+    <button class="staff-btn outline" id="add-item-toggle" type="button" style="margin-top:14px;">+ Add another item</button>
+
+    <div class="search-panel" id="search-panel">
+      <div class="search-row">
+        <div class="staff-field"><label>Category</label>
+          <select id="s-category">
+            <option value="">All categories</option>
+            <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+          </select>
+        </div>
+        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
+        <button class="staff-btn" id="search-btn" type="button">Search</button>
+      </div>
+      <div id="search-status" class="staff-muted" style="font-size:0.85rem; margin-bottom:8px;">Pick a category or type a search to see items.</div>
+      <div id="search-results"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Full-screen presentation overlay -->
+<div id="overlay">
+  <div class="overlay-inner">
+    <button class="overlay-close" id="overlay-close" type="button">&larr; Back to list</button>
+    <img class="overlay-photo" id="ov-photo" src="" alt="" style="display:none;" />
+    <div class="overlay-photo-empty" id="ov-photo-empty" style="display:none;">📷</div>
+    <span class="staff-eyebrow overlay-category" id="ov-category"></span>
+    <h2 class="staff-serif overlay-name" id="ov-name"></h2>
+    <p class="overlay-price" id="ov-price"></p>
+    <p class="overlay-scarcity" id="ov-scarcity"></p>
+    <p class="overlay-desc" id="ov-desc"></p>
+
+    <label class="overlay-hook-label">Your notes / hook line</label>
+    <textarea class="overlay-hook" id="ov-hook" placeholder="Anything you want to remember to say about this piece..."></textarea>
+    <div id="hook-save-msg"></div>
+
+    <div id="ov-not-done">
+      <button class="staff-btn overlay-complete-btn" id="ov-complete-btn" type="button">✓ Presentation Complete</button>
+    </div>
+    <div id="ov-done" class="presented-block" style="display:none;">
+      <div class="tag">✓ Presented</div>
+      <button class="undo-link" id="ov-undo-btn" type="button">Undo — mark not presented</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const planId = params.get('id');
+let planData = null;
+let currentOverlayItemId = null;
+
+if (!planId) {
+  document.body.innerHTML = '<p style="padding:40px; color:#F5F1EA; font-family:Inter,sans-serif;">No plan specified. <a href="whatnot-prompts.html" style="color:#D4AF6A;">Back to Stream Plans</a></p>';
+}
+
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function toLocalInputValue(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+async function loadPlan() {
+  const res = await fetch('/api/stream-plans?id=' + encodeURIComponent(planId));
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('items-wrap').innerHTML = '<p class="staff-muted">Could not load this plan.</p>';
+    return;
+  }
+  planData = data;
+  document.getElementById('page-heading').textContent = data.plan.title || 'Untitled stream';
+  document.getElementById('f-title').value = data.plan.title || '';
+  document.getElementById('f-duration').value = data.plan.duration_minutes || '';
+  document.getElementById('f-planned-at').value = toLocalInputValue(data.plan.planned_at);
+  renderItems();
+}
+
+function scarcityInfo(qty) {
+  const n = Number(qty) || 0;
+  if (n <= 0) return { text: 'Sold out — check stock before presenting', cls: 'low' };
+  if (n === 1) return { text: 'Only 1 left', cls: 'low' };
+  if (n <= 3) return { text: 'Only ' + n + ' left', cls: 'low' };
+  return { text: n + ' in stock', cls: 'ok' };
+}
+
+function renderItems() {
+  const wrap = document.getElementById('items-wrap');
+  const items = planData.items || [];
+  if (!items.length) {
+    wrap.innerHTML = '<p class="staff-muted">No items yet — add some below.</p>';
+    return;
+  }
+  wrap.innerHTML = items.map(it => {
+    if (it.name === null) {
+      return `
+        <div class="item-row removed" data-id="${it.id}">
+          <div class="thumb-empty"></div>
+          <div class="name-col"><h4 class="staff-muted">Item removed from Inventory</h4></div>
+          <button class="remove-x" data-remove="${it.id}" type="button" title="Remove from plan">&times;</button>
+        </div>`;
+    }
+    const thumb = it.photo_url ? `<img class="thumb" src="${esc(it.photo_url)}">` : `<div class="thumb-empty"></div>`;
+    const price = '£' + Number(it.sell_price || 0).toFixed(2);
+    return `
+      <div class="item-row" data-id="${it.id}">
+        ${thumb}
+        <div class="name-col">
+          <h4>${esc(it.name)}</h4>
+          <div class="price">${price} · ${esc(it.category)}</div>
+        </div>
+        <span class="status-pill ${it.complete ? 'done' : 'pending'}">${it.complete ? 'Presented' : 'Not yet'}</span>
+        <button class="remove-x" data-remove="${it.id}" type="button" title="Remove from plan">&times;</button>
+      </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.item-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-remove]')) return;
+      if (row.classList.contains('removed')) return;
+      openOverlay(row.dataset.id);
+    });
+  });
+  wrap.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Remove this item from the stream plan?')) return;
+      await fetch('/api/stream-plan-items?id=' + encodeURIComponent(btn.dataset.remove), { method: 'DELETE' });
+      await loadPlan();
+    });
+  });
+}
+
+// ===== Plan meta autosave =====
+async function savePlanMeta(fields) {
+  const statusEl = document.getElementById('meta-status');
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = '';
+  try {
+    const res = await fetch('/api/stream-plans?id=' + encodeURIComponent(planId), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields)
+    });
+    if (!res.ok) { statusEl.textContent = 'Could not save.'; statusEl.style.color = 'var(--staff-danger)'; return; }
+    statusEl.textContent = 'Saved ✓';
+    statusEl.style.color = 'var(--staff-ok)';
+    if (fields.title !== undefined) document.getElementById('page-heading').textContent = fields.title || 'Untitled stream';
+    setTimeout(() => { statusEl.textContent = ''; }, 1500);
+  } catch (e) {
+    statusEl.textContent = 'Something went wrong.';
+    statusEl.style.color = 'var(--staff-danger)';
+  }
+}
+document.getElementById('f-title').addEventListener('blur', function () { savePlanMeta({ title: this.value.trim() }); });
+document.getElementById('f-duration').addEventListener('blur', function () { savePlanMeta({ duration_minutes: this.value ? Number(this.value) : null }); });
+document.getElementById('f-planned-at').addEventListener('change', function () {
+  const v = this.value ? new Date(this.value).toISOString() : null;
+  savePlanMeta({ planned_at: v });
+});
+
+// ===== Add item search =====
+document.getElementById('add-item-toggle').addEventListener('click', function () {
+  document.getElementById('search-panel').classList.toggle('open');
+});
+async function runItemSearch() {
+  const category = document.getElementById('s-category').value;
+  const q = document.getElementById('s-query').value.trim();
+  const statusEl = document.getElementById('search-status');
+  const wrap = document.getElementById('search-results');
+  if (!category && !q) { wrap.innerHTML = ''; statusEl.textContent = 'Pick a category or type a search to see items.'; return; }
+  statusEl.textContent = 'Searching...';
+  const p = new URLSearchParams();
+  if (category) p.set('category', category);
+  if (q) p.set('q', q);
+  try {
+    const res = await fetch('/api/inv-search?' + p.toString());
+    const rows = await res.json();
+    if (!rows.length) { wrap.innerHTML = ''; statusEl.textContent = 'No items match.'; return; }
+    statusEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's') + '.';
+    wrap.innerHTML = rows.map(r => `
+      <div class="search-result-row">
+        ${r.photo_url ? `<img class="thumb" src="${esc(r.photo_url)}">` : `<div class="thumb-empty"></div>`}
+        <div class="name-col"><strong>${esc(r.name)}</strong> <span class="staff-muted">£${Number(r.sell_price || 0).toFixed(2)} · ${esc(r.quantity)} in stock</span></div>
+        <button class="staff-btn outline" style="padding:6px 14px;" type="button" data-add="${r.id}">Add</button>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('[data-add]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+        await fetch('/api/stream-plan-items', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan_id: Number(planId), inventory_id: Number(btn.dataset.add) })
+        });
+        await loadPlan();
+        btn.textContent = 'Added ✓';
+      });
+    });
+  } catch (e) {
+    statusEl.textContent = 'Could not search — check your connection.';
+  }
+}
+document.getElementById('search-btn').addEventListener('click', runItemSearch);
+document.getElementById('s-query').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runItemSearch(); } });
+document.getElementById('s-category').addEventListener('change', runItemSearch);
+
+// ===== Presentation overlay =====
+function openOverlay(itemRowId) {
+  const it = (planData.items || []).find(x => String(x.id) === String(itemRowId));
+  if (!it) return;
+  currentOverlayItemId = it.id;
+
+  const photoEl = document.getElementById('ov-photo');
+  const photoEmptyEl = document.getElementById('ov-photo-empty');
+  if (it.photo_url) { photoEl.src = it.photo_url; photoEl.style.display = ''; photoEmptyEl.style.display = 'none'; }
+  else { photoEl.style.display = 'none'; photoEmptyEl.style.display = 'flex'; }
+
+  document.getElementById('ov-category').textContent = it.category || '';
+  document.getElementById('ov-name').textContent = it.name || '';
+  document.getElementById('ov-price').textContent = '£' + Number(it.sell_price || 0).toFixed(2);
+  const sc = scarcityInfo(it.quantity);
+  const scEl = document.getElementById('ov-scarcity');
+  scEl.textContent = sc.text;
+  scEl.className = 'overlay-scarcity ' + sc.cls;
+  document.getElementById('ov-desc').textContent = it.description || '';
+  document.getElementById('ov-hook').value = it.hook_note || '';
+  document.getElementById('hook-save-msg').textContent = '';
+
+  updateOverlayCompleteState(!!it.complete);
+
+  document.getElementById('overlay').classList.add('open');
+  window.scrollTo(0, 0);
+}
+
+function updateOverlayCompleteState(complete) {
+  document.getElementById('ov-not-done').style.display = complete ? 'none' : '';
+  document.getElementById('ov-done').style.display = complete ? '' : 'none';
+}
+
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('open');
+  currentOverlayItemId = null;
+}
+document.getElementById('overlay-close').addEventListener('click', closeOverlay);
+
+document.getElementById('ov-hook').addEventListener('blur', async function () {
+  if (!currentOverlayItemId) return;
+  const msgEl = document.getElementById('hook-save-msg');
+  msgEl.textContent = 'Saving...';
+  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(currentOverlayItemId), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hook_note: this.value })
+  });
+  const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
+  if (it) it.hook_note = this.value;
+  msgEl.textContent = 'Saved ✓';
+  setTimeout(() => { msgEl.textContent = ''; }, 1200);
+});
+
+document.getElementById('ov-complete-btn').addEventListener('click', async () => {
+  if (!currentOverlayItemId) return;
+  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(currentOverlayItemId), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ complete: true })
+  });
+  const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
+  if (it) it.complete = 1;
+  renderItems();
+  closeOverlay();
+});
+
+document.getElementById('ov-undo-btn').addEventListener('click', async () => {
+  if (!currentOverlayItemId) return;
+  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(currentOverlayItemId), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ complete: false })
+  });
+  const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
+  if (it) it.complete = 0;
+  updateOverlayCompleteState(false);
+  renderItems();
+});
+
+if (planId) loadPlan();
+</script>
+</body>
+</html>

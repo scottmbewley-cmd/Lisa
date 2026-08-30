@@ -3,10 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Live Whatnot Prompts — Evelle</title>
+<title>Stream Plans — Evelle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .plan-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 16px 18px; border: 1px solid var(--staff-line); border-radius: var(--staff-radius);
+    background: var(--staff-card); margin-bottom: 10px; cursor: pointer;
+  }
+  .plan-row:hover { border-color: var(--staff-gold); }
+  .plan-row h3 { margin: 0 0 4px; font-family: 'Cormorant Garamond', serif; font-size: 1.25rem; }
+  .plan-row .plan-meta { font-size: 0.85rem; color: var(--staff-white-dim); }
+  .plan-row .plan-actions { display: flex; align-items: center; gap: 14px; }
+</style>
 </head>
 <body class="staff-body">
 
@@ -15,7 +26,7 @@
     <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
     <div>
       <h1 class="staff-serif">Evelle</h1>
-      <div class="staff-tagline">Live Whatnot Prompts · The beauty of being you</div>
+      <div class="staff-tagline">Stream Plans · The beauty of being you</div>
     </div>
   </div>
   <nav class="staff-nav">
@@ -25,13 +36,87 @@
 
 <main class="staff-main">
   <span class="staff-eyebrow">Live Whatnot Prompts</span>
-  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Whatnot Prompts</h1>
-  <p class="staff-muted">This tool is coming soon.</p>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Stream Plans</h1>
+  <p class="staff-muted">Build a running order of items before you go live, then work through it on-screen while you present — pick whichever's next, in any order.</p>
 
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-top:24px;">
-    <p class="staff-muted" style="margin:0;">Nothing to configure yet — check back once this is built out.</p>
-  </div>
+  <button class="staff-btn" id="new-plan-btn" style="margin:18px 0;">+ New Stream Plan</button>
+  <div id="status-msg" style="font-size:0.85rem; min-height:20px; margin-bottom:10px;"></div>
+
+  <div id="plans-list"><p class="staff-muted">Loading…</p></div>
 </main>
 
+<script>
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function formatPlanDate(planned_at) {
+  if (!planned_at) return 'No date set';
+  const d = new Date(planned_at);
+  if (isNaN(d.getTime())) return 'No date set';
+  return d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+async function loadPlans() {
+  const wrap = document.getElementById('plans-list');
+  try {
+    const res = await fetch('/api/stream-plans');
+    const plans = await res.json();
+    if (!plans.length) {
+      wrap.innerHTML = '<p class="staff-muted">No stream plans yet — create one to get started.</p>';
+      return;
+    }
+    wrap.innerHTML = plans.map(p => `
+      <div class="plan-row" data-id="${p.id}">
+        <div>
+          <h3>${esc(p.title) || 'Untitled stream'}</h3>
+          <div class="plan-meta">${esc(formatPlanDate(p.planned_at))}${p.duration_minutes ? ' · ' + esc(p.duration_minutes) + ' min planned' : ''} · ${p.item_count} item${p.item_count === 1 ? '' : 's'}${p.item_count ? ' · ' + p.complete_count + '/' + p.item_count + ' presented' : ''}</div>
+        </div>
+        <div class="plan-actions">
+          <button class="staff-btn outline" style="padding:8px 16px;" type="button">Open</button>
+          <button class="staff-del-btn" type="button" data-del="${p.id}">Delete</button>
+        </div>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('.plan-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-del]')) return;
+        window.location.href = 'stream-plan.html?id=' + row.dataset.id;
+      });
+    });
+    wrap.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this stream plan? This removes its whole item list and cannot be undone.')) return;
+        await fetch('/api/stream-plans?id=' + encodeURIComponent(btn.dataset.del), { method: 'DELETE' });
+        loadPlans();
+      });
+    });
+  } catch (e) {
+    wrap.innerHTML = '<p class="staff-muted">Could not load — check your connection and reload.</p>';
+  }
+}
+
+document.getElementById('new-plan-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('status-msg');
+  const btn = document.getElementById('new-plan-btn');
+  btn.disabled = true;
+  msgEl.textContent = 'Creating...';
+  msgEl.style.color = '';
+  try {
+    const res = await fetch('/api/stream-plans', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (!res.ok) { msgEl.textContent = data.error || 'Could not create a new plan.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    window.location.href = 'stream-plan.html?id=' + data.id;
+  } catch (e) {
+    msgEl.textContent = 'Something went wrong: ' + e.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadPlans();
+</script>
 </body>
 </html>

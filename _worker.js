@@ -219,6 +219,96 @@ async function handleInvItems(request, env, url) {
   return json({ error: "Method not allowed" }, 405);
 }
 
+// Stream Plans — Lisa's prep tool for Whatnot live shows. Each item on a
+// plan is a shortcut into Inventory (inventory_id), never a copy — the
+// prompt card always reflects the item's current live name, description,
+// price, stock, and photo, straight from the same row Inventory manages.
+// Plans are never locked or archived: any plan, old or new, can be
+// reopened, edited, and reused for a live stream whenever Lisa wants.
+async function handleStreamPlans(request, env, url) {
+  if (request.method === "GET") {
+    const id = url.searchParams.get("id");
+    if (id) {
+      const plan = await env.DB.prepare(`SELECT * FROM stream_plans WHERE id = ?1`).bind(id).first();
+      if (!plan) return json({ error: "Plan not found" }, 404);
+      const { results: items } = await env.DB.prepare(
+        `SELECT spi.id, spi.position, spi.complete, spi.hook_note, spi.inventory_id,
+                inv.name, inv.category, inv.notes as description, inv.sell_price, inv.quantity, inv.photo_url, inv.sku
+         FROM stream_plan_items spi
+         LEFT JOIN inventory inv ON inv.id = spi.inventory_id
+         WHERE spi.plan_id = ?1 ORDER BY spi.position ASC`
+      ).bind(id).all();
+      return json({ plan, items });
+    }
+    const { results: plans } = await env.DB.prepare(
+      `SELECT sp.*,
+              (SELECT COUNT(*) FROM stream_plan_items spi WHERE spi.plan_id = sp.id) as item_count,
+              (SELECT COALESCE(SUM(complete),0) FROM stream_plan_items spi WHERE spi.plan_id = sp.id) as complete_count
+       FROM stream_plans sp ORDER BY COALESCE(sp.planned_at, sp.created_at) DESC, sp.id DESC`
+    ).all();
+    return json(plans);
+  }
+  if (request.method === "POST") {
+    const b = await request.json().catch(() => ({}));
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO stream_plans (title, planned_at, duration_minutes) VALUES (?1,?2,?3)`
+    ).bind(b.title || "", b.planned_at || null, b.duration_minutes ? Number(b.duration_minutes) : null).run();
+    return json({ success: true, id: insertRes.meta.last_row_id });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fieldMap = { title: "title", planned_at: "planned_at", duration_minutes: "duration_minutes" };
+    const sets = []; const vals = [];
+    Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE stream_plans SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM stream_plan_items WHERE plan_id = ?1`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM stream_plans WHERE id = ?1`).bind(id).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
+async function handleStreamPlanItems(request, env, url) {
+  if (request.method === "POST") {
+    const b = await request.json();
+    if (!b.plan_id || !b.inventory_id) return json({ error: "plan_id and inventory_id required" }, 400);
+    const posRow = await env.DB.prepare(`SELECT COALESCE(MAX(position),-1) as maxPos FROM stream_plan_items WHERE plan_id = ?1`).bind(b.plan_id).first();
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO stream_plan_items (plan_id, inventory_id, position, complete, hook_note) VALUES (?1,?2,?3,0,'')`
+    ).bind(b.plan_id, b.inventory_id, posRow.maxPos + 1).run();
+    return json({ success: true, id: insertRes.meta.last_row_id });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+    const fieldMap = { complete: "complete", hook_note: "hook_note" };
+    const sets = []; const vals = [];
+    Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(f === "complete" ? (b[f] ? 1 : 0) : b[f]); } }); 
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE stream_plan_items SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM stream_plan_items WHERE id = ?1`).bind(id).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
 // Fresh routes for the Accounting tool — deliberately NOT /api/expenditure,
 // which is dead code blocked by HUB_DISABLED and tied to the old disabled
 // Business Hub. These reuse the existing `expenditure` table.
@@ -1141,6 +1231,8 @@ export default {
       if (path === "/api/inv-report") return handleInvReport(request, env, url);
       if (path === "/api/inv-lowstock") return handleInvLowStock(request, env, url);
       if (path === "/api/inv-items") return handleInvItems(request, env, url);
+      if (path === "/api/stream-plans") return handleStreamPlans(request, env, url);
+      if (path === "/api/stream-plan-items") return handleStreamPlanItems(request, env, url);
       if (path === "/api/orders") return handleOrders(request, env, url);
       if (path === "/api/staff-test-order") return handleStaffTestOrder(request, env);
       if (path === "/api/invoice-search") return handleInvoiceSearch(request, env, url);
