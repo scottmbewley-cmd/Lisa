@@ -369,12 +369,12 @@ async function handleDeliverySettings(request, env) {
   }
   if (request.method === "POST") {
     const b = await request.json();
-    const fields = ["show_return_address", "return_name", "return_address"];
+    const fields = ["show_return_address", "return_name", "return_address", "postage_cost"];
     const sets = []; const vals = [];
     fields.forEach(f => {
       if (b[f] !== undefined) {
         sets.push(`${f} = ?`);
-        vals.push(f === "show_return_address" ? (b[f] ? 1 : 0) : b[f]);
+        vals.push(f === "show_return_address" ? (b[f] ? 1 : 0) : f === "postage_cost" ? (Number(b[f]) || 0) : b[f]);
       }
     });
     if (!sets.length) return json({ error: "no fields to update" }, 400);
@@ -599,12 +599,19 @@ async function handleCareContent(request, env) {
   }
   return json({ error: "Method not allowed" }, 405);
 }
-// Checkout is server-rendered only so the (non-secret) PayPal client id can
-// be injected — checkout.html's JS uses it to decide whether to load the
-// PayPal SDK at all, or show a graceful "payments aren't live yet" state.
+// Checkout is server-rendered only so the (non-secret) PayPal client id and
+// the current postage cost can be injected — checkout.html's JS uses the
+// PayPal id to decide whether to load the SDK, and the postage figure to
+// show the customer the exact amount they'll actually be charged. The real,
+// authoritative charge is always computed server-side in priceCartLines()
+// at create-order time regardless of what's shown here.
 async function renderCheckoutPage(request, env) {
   const template = await (await env.ASSETS.fetch(new Request(new URL("/checkout.html", request.url)))).text();
-  const html = template.replace("<!--PAYPAL_CLIENT_ID-->", escapeHtml(env.PAYPAL_CLIENT_ID || "")).replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
+  const postageCost = await getPostageCost(env);
+  const html = template
+    .replace("<!--PAYPAL_CLIENT_ID-->", escapeHtml(env.PAYPAL_CLIENT_ID || ""))
+    .replace("<!--POSTAGE_COST-->", String(postageCost))
+    .replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
@@ -677,7 +684,15 @@ async function handleShopConfig(request, env) {
 }
 
 const ORDER_STATUSES = ["paid", "posted", "cancelled"];
-const UK_SHIPPING_FLAT = 2.50; // must match public/assets/js/cart.js's UK_SHIPPING_FLAT
+
+// The postage charged to customers and logged as an expense are always the
+// SAME number, read fresh from delivery_settings — set once by staff,
+// editable any time. Falls back to 2.50 only if the row is ever missing
+// entirely (should never happen once delivery_settings exists).
+async function getPostageCost(env) {
+  const row = await env.DB.prepare(`SELECT postage_cost FROM delivery_settings WHERE id = 1`).first();
+  return row && row.postage_cost !== null && row.postage_cost !== undefined ? Number(row.postage_cost) : 2.50;
+}
 
 // Sums duplicate ids so a tampered or stale client cart can't submit the
 // same line twice to bypass the per-line stock guard below.
@@ -753,7 +768,7 @@ async function confirmOrder(env, input) {
   }
 
   const subtotal = decremented.reduce((sum, it) => sum + it.sell_price * it.qty, 0);
-  const shipping = UK_SHIPPING_FLAT;
+  const shipping = await getPostageCost(env);
   const total = subtotal + shipping;
   const c = input.customer || {};
 
@@ -780,6 +795,21 @@ async function confirmOrder(env, input) {
     ).bind(orderId, it.id, it.sku, it.name, it.category, it.sell_price, it.qty, it.sell_price * it.qty, it.cost_per_item, it.cost_per_item * it.qty)
   );
   await env.DB.batch(itemStmts);
+
+  // Postage is charged to the customer and logged as an expense at the
+  // SAME moment, using the SAME figure — there is no separate "what it
+  // actually cost" step afterward, because nothing can be added to an
+  // order once the customer has already paid. Tied to this invoice via
+  // linked_order_id, same discipline as Inventory Stock's auto-logging.
+  if (shipping > 0) {
+    await env.DB.prepare(
+      `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_order_id)
+       VALUES (?1,?2,?3,?4,?5,?6)`
+    ).bind(
+      new Date().toISOString().slice(0, 10), "Postage", "", shipping,
+      `Auto: postage for ${invoiceNumber}`, orderId
+    ).run();
+  }
 
   return { success: true, orderId, invoiceNumber, subtotal, shipping, total };
 }
@@ -828,7 +858,7 @@ async function priceCartLines(env, items) {
     priced.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, price: Number(row.sell_price) || 0 });
   }
   const subtotal = priced.reduce((sum, it) => sum + it.price * it.qty, 0);
-  const shipping = UK_SHIPPING_FLAT;
+  const shipping = await getPostageCost(env);
   return { items: priced, subtotal, shipping, total: subtotal + shipping };
 }
 
@@ -1026,31 +1056,6 @@ async function handleOrders(request, env, url) {
       ? `UPDATE orders SET status = ?1, ${stampCol} = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`
       : `UPDATE orders SET status = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`;
     await env.DB.prepare(sql).bind(b.status, id).run();
-
-    // The real postage cost is only known once the parcel's actually been
-    // taken to the post office — there's no way to predict it, since it
-    // varies by weight/size and whatever the current Royal Mail rate is.
-    // So it's captured right here, at the moment of posting, as the real
-    // figure for this specific invoice — not a flat guess, not a formula.
-    // Only logs on a genuine transition to 'posted' with a real amount, and
-    // only once per order (checked below), same discipline as Inventory
-    // Stock's auto-logging.
-    if (b.status === "posted" && b.postage_cost !== undefined) {
-      const amount = Number(b.postage_cost) || 0;
-      if (amount > 0) {
-        const already = await env.DB.prepare(`SELECT id FROM expenditure WHERE linked_order_id = ?1 AND category = 'Postage'`).bind(id).first();
-        if (!already) {
-          const order = await env.DB.prepare(`SELECT invoice_number FROM orders WHERE id = ?1`).bind(id).first();
-          await env.DB.prepare(
-            `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_order_id)
-             VALUES (?1,?2,?3,?4,?5,?6)`
-          ).bind(
-            new Date().toISOString().slice(0, 10), "Postage", "", amount,
-            `Auto: postage for ${order ? order.invoice_number : ('order #' + id)}`, id
-          ).run();
-        }
-      }
-    }
 
     return json({ success: true });
   }

@@ -83,7 +83,7 @@
           <div id="checkout-items"></div>
           <div class="checkout-totals">
             <div class="checkout-total-row"><span>Subtotal</span><span id="co-subtotal">£0.00</span></div>
-            <div class="checkout-total-row"><span>UK Shipping</span><span id="co-shipping">£0.00</span></div>
+            <div class="checkout-total-row"><span>Postage</span><span id="co-shipping">£0.00</span></div>
             <div class="checkout-total-row grand"><span>Total</span><span id="co-total">£0.00</span></div>
           </div>
         </div>
@@ -124,6 +124,7 @@
 <script src="assets/js/main.js"></script>
 <script src="assets/js/cart.js"></script>
 <script>window.PAYPAL_CLIENT_ID = "<!--PAYPAL_CLIENT_ID-->";</script>
+<script>window.POSTAGE_COST = parseFloat("<!--POSTAGE_COST-->") || 0;</script>
 <script>
 function renderCheckoutSummary() {
   const items = readCart();
@@ -155,7 +156,7 @@ function renderCheckoutSummary() {
   `).join('');
 
   const subtotal = cartTotal(items);
-  const shipping = items.length ? UK_SHIPPING_FLAT : 0;
+  const shipping = items.length ? window.POSTAGE_COST : 0;
   const total = subtotal + shipping;
   document.getElementById('co-subtotal').textContent = '£' + subtotal.toFixed(2);
   document.getElementById('co-shipping').textContent = '£' + shipping.toFixed(2);
