@@ -59,8 +59,8 @@
 
   <div class="status-filter-row" id="status-filters">
     <button class="status-filter-btn active" data-status="">All</button>
-    <button class="status-filter-btn" data-status="paid">Moved to Delivery</button>
-    <button class="status-filter-btn" data-status="posted">Posted</button>
+    <button class="status-filter-btn" data-status="paid">Paid</button>
+    <button class="status-filter-btn" data-status="posted">Moved to Delivery</button>
     <button class="status-filter-btn" data-status="cancelled">Cancelled</button>
   </div>
 
@@ -104,7 +104,7 @@ let activeStatus = '';
 
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function money(n) { return '£' + Number(n || 0).toFixed(2); }
-function statusLabel(s) { return { paid: 'Moved to Delivery', posted: 'Posted', cancelled: 'Cancelled' }[s] || s; }
+function statusLabel(s) { return { paid: 'Paid', posted: 'Moved to Delivery', cancelled: 'Cancelled' }[s] || s; }
 function fmtDate(s) {
   if (!s) return '—';
   const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
