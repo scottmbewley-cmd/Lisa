@@ -1016,7 +1016,16 @@ async function handleOrders(request, env, url) {
     if (!b.status || !ORDER_STATUSES.includes(b.status)) {
       return json({ error: "status must be one of: " + ORDER_STATUSES.join(", ") }, 400);
     }
-    await env.DB.prepare(`UPDATE orders SET status = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`).bind(b.status, id).run();
+    // created_at IS the paid timestamp — orders can only ever be inserted
+    // as 'paid' (see confirmOrder), so that fact is permanent and never
+    // needs its own column. posted_at / cancelled_at capture the other two
+    // transitions the same way, so every invoice keeps a permanent record
+    // of when each stage happened, visible regardless of current status.
+    const stampCol = b.status === "posted" ? "posted_at" : b.status === "cancelled" ? "cancelled_at" : null;
+    const sql = stampCol
+      ? `UPDATE orders SET status = ?1, ${stampCol} = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`
+      : `UPDATE orders SET status = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`;
+    await env.DB.prepare(sql).bind(b.status, id).run();
     return json({ success: true });
   }
 

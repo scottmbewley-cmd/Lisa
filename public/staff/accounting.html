@@ -195,6 +195,11 @@ function fmtDate(s) {
   const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
+function fmtDateTime(s) {
+  if (!s) return '—';
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
 // Deliberately NOT toISOString() — that converts to UTC, which shifts the
 // date backward by a day for any UK visitor during BST (e.g. local
 // midnight Aug 1 becomes July 31 in UTC). Build the string from the local
@@ -429,9 +434,13 @@ function renderInvoiceDetail(match) {
   document.querySelectorAll('#inv-results-wrap .orders-row').forEach(function (r) {
     r.classList.toggle('selected', r.dataset.id === String(o.id));
   });
+  const timelineParts = ['<strong style="color:var(--staff-ok);">Paid</strong> ' + fmtDateTime(o.created_at)];
+  if (o.posted_at) timelineParts.push('Posted ' + fmtDateTime(o.posted_at));
+  if (o.cancelled_at) timelineParts.push('<span style="color:var(--staff-danger);">Cancelled</span> ' + fmtDateTime(o.cancelled_at));
   document.getElementById('inv-detail-wrap').innerHTML = '' +
     '<div class="staff-card" style="border-top: 1px solid var(--staff-line); margin-top:14px;">' +
-      '<h4 class="staff-serif" style="margin:0 0 10px;">' + esc(o.invoice_number || ('Order #' + o.id)) + ' — ' + fmtDate(o.created_at) + '</h4>' +
+      '<h4 class="staff-serif" style="margin:0 0 6px;">' + esc(o.invoice_number || ('Order #' + o.id)) + '</h4>' +
+      '<p class="staff-muted" style="font-size:0.85rem; margin:0 0 14px;">' + timelineParts.join(' · ') + '</p>' +
       '<p style="margin:0 0 4px;"><strong>' + esc(o.customer_name) + '</strong></p>' +
       '<p class="staff-muted" style="margin:0 0 4px;">' + [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join(', ') + '</p>' +
       '<p class="staff-muted" style="margin:0 0 14px;">' + esc(o.customer_email) + '</p>' +

@@ -87,6 +87,8 @@
       <h3 class="staff-serif" id="detail-title" style="margin:0;">Order</h3>
     </div>
 
+    <p id="d-timeline" class="staff-muted" style="font-size:0.85rem; margin-top:6px;"></p>
+
     <div class="detail-grid" style="margin-top:18px;">
       <div class="detail-block">
         <h4>Ship To</h4>
@@ -142,6 +144,11 @@ function fmtDate(s) {
   if (!s) return '—';
   const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function fmtDateTime(s) {
+  if (!s) return '—';
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 async function loadSettings() {
@@ -242,6 +249,10 @@ function renderDetail(data) {
   const detailEl = document.getElementById('order-detail');
   detailEl.style.display = '';
   document.getElementById('detail-title').textContent = (o.invoice_number || ('Order #' + o.id)) + ' — ' + fmtDate(o.created_at);
+  const timelineParts = ['Paid ' + fmtDateTime(o.created_at)];
+  if (o.posted_at) timelineParts.push('Posted ' + fmtDateTime(o.posted_at));
+  if (o.cancelled_at) timelineParts.push('Cancelled ' + fmtDateTime(o.cancelled_at));
+  document.getElementById('d-timeline').textContent = timelineParts.join(' · ');
   document.getElementById('d-name').innerHTML = '<strong>' + esc(o.customer_name) + '</strong>';
   document.getElementById('d-address').innerHTML = [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
   document.getElementById('d-email').textContent = o.customer_email;
@@ -292,7 +303,7 @@ document.getElementById('print-note-btn').addEventListener('click', function () 
   document.body.classList.remove('label-mode');
   const o = currentDetail.order, items = currentDetail.items;
   document.getElementById('print-order-no').textContent = o.invoice_number || ('Order #' + o.id);
-  document.getElementById('print-date').textContent = fmtDate(o.created_at);
+  document.getElementById('print-date').textContent = 'Paid ' + fmtDateTime(o.created_at) + (o.posted_at ? ' · Posted ' + fmtDateTime(o.posted_at) : '');
   document.getElementById('print-address').innerHTML = '<strong>' + esc(o.customer_name) + '</strong><br>' +
     [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
   document.getElementById('print-table-wrap').innerHTML = '' +
