@@ -966,6 +966,31 @@ async function handlePaypalCaptureOrder(request, env) {
   return json({ success: true, orderId: result.orderId, invoiceNumber: result.invoiceNumber, total: result.total });
 }
 
+// Staff-only manual override for testing the full order pipeline without
+// PayPal. Gated by isAuthed() at the router level (same as every other
+// /api/ route below) — a customer hitting checkout with no staff session
+// gets a plain 401, never touches stock or creates an order. Runs through
+// the exact same confirmOrder() every real payment uses, so stock decrement,
+// invoice numbering, and order_items snapshotting are all genuinely tested,
+// not faked. The only thing skipped is PayPal itself, which can't be tested
+// without their own sandbox regardless of what this site does.
+async function handleStaffTestOrder(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const c = b.customer || {};
+  const missing = ["name", "email", "address_line1", "city", "postcode"].filter(f => !String(c[f] || "").trim());
+  if (missing.length) return json({ error: "missing_fields", message: "Missing: " + missing.join(", ") }, 400);
+
+  const result = await confirmOrder(env, { customer: c, items: b.items });
+  if (!result.success) {
+    return json({
+      success: false, error: result.error, item: result.item,
+      message: result.item ? ('"' + result.item.name + '" is out of stock.') : 'That item is out of stock.',
+    }, 409);
+  }
+  return json({ success: true, orderId: result.orderId, invoiceNumber: result.invoiceNumber, total: result.total });
+}
+
 async function handleOrders(request, env, url) {
   if (request.method === "GET") {
     const id = url.searchParams.get("id");
@@ -1077,6 +1102,7 @@ export default {
       if (path === "/api/inv-lowstock") return handleInvLowStock(request, env, url);
       if (path === "/api/inv-items") return handleInvItems(request, env, url);
       if (path === "/api/orders") return handleOrders(request, env, url);
+      if (path === "/api/staff-test-order") return handleStaffTestOrder(request, env);
       if (path === "/api/invoice-search") return handleInvoiceSearch(request, env, url);
       if (path === "/api/expense-entries") return handleExpenseEntries(request, env, url);
       if (path === "/api/accounting-report") return handleAccountingReport(request, env, url);
