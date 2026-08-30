@@ -41,17 +41,15 @@
   .search-result-row .name-col { flex: 1; min-width: 0; font-size: 0.9rem; }
 
   .prompt-tile { width: 46px; height: 46px; border-radius: 6px; background: rgba(212,175,106,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
-  .prompt-group-heading { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-gold-dim); margin: 14px 0 8px; }
-  .prompt-group-heading:first-child { margin-top: 0; }
-  .preset-btn {
-    display: block; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 6px;
-    background: rgba(255,255,255,0.03); border: 1px solid var(--staff-line); border-radius: 6px;
-    color: var(--staff-white); cursor: pointer; font-family: inherit;
+
+  .confidence-bubble {
+    position: fixed; top: 90px; right: 16px; max-width: 230px; z-index: 102;
+    background: var(--staff-gold); color: #1A1714; padding: 14px 16px; border-radius: 14px 14px 2px 14px;
+    font-size: 0.9rem; font-weight: 600; line-height: 1.4;
+    opacity: 0; transform: translateX(16px) scale(0.96); transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   }
-  .preset-btn:hover { border-color: var(--staff-gold); }
-  .preset-btn .p-label { font-weight: 600; font-size: 0.9rem; }
-  .preset-btn .p-text { font-size: 0.8rem; color: var(--staff-white-dim); margin-top: 2px; }
-  .custom-prompt-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--staff-line); }
+  .confidence-bubble.show { opacity: 1; transform: translateX(0) scale(1); }
 
   /* Full-screen presentation overlay */
   #overlay {
@@ -140,12 +138,9 @@
     <button class="staff-btn outline" id="add-prompt-toggle" type="button" style="margin-top:14px;">+ Add a prompt card</button>
 
     <div class="search-panel" id="prompt-panel">
-      <div id="preset-list"></div>
-      <div class="custom-prompt-form">
-        <div class="staff-field"><label>Custom prompt label</label><input type="text" id="custom-p-label" placeholder="e.g. Mention free shipping" /></div>
-        <div class="staff-field"><label>What it should say (optional)</label><textarea id="custom-p-text" rows="2" placeholder="The reminder text you'll read on screen"></textarea></div>
-        <button class="staff-btn" id="custom-p-add" type="button">Add custom prompt</button>
-      </div>
+      <div class="staff-field"><label>Prompt label</label><input type="text" id="custom-p-label" placeholder="e.g. Introduction, Moving to bracelets" /></div>
+      <div class="staff-field"><label>What you want to read</label><textarea id="custom-p-text" rows="3" placeholder="Write exactly what you want to say here..."></textarea></div>
+      <button class="staff-btn" id="custom-p-add" type="button">Add prompt card</button>
     </div>
 
     <div class="search-panel" id="search-panel">
@@ -191,6 +186,7 @@
   </div>
 </div>
 <div class="footnote-strip" id="footnote-strip"></div>
+<div class="confidence-bubble" id="confidence-bubble"><span id="confidence-bubble-text"></span></div>
 
 <script>
 const params = new URLSearchParams(window.location.search);
@@ -199,21 +195,16 @@ let planData = null;
 let currentOverlayItemId = null;
 let presentingMode = false;
 
-const PROMPT_PRESETS = [
-  { group: 'Confidence & pacing', items: [
-    { label: 'Struggling for words', text: 'Take a breath. Describe what you see — the colour, the shine, how it catches the light.' },
-    { label: 'Slow down', text: 'Slow down. Deep breath. Smile — you know this piece.' },
-  ]},
-  { group: 'Between items', items: [
-    { label: 'Chat for a moment', text: "Mention the weather, how your day's going, anything on your mind." },
-    { label: "Tease what's next", text: "Give a hint about what's coming up before you show it." },
-  ]},
-  { group: 'Interaction reminders', items: [
-    { label: 'Read the chat', text: "Read out a few messages — say people's names." },
-    { label: 'Thank a buyer', text: "Thank whoever just bought — read their name out." },
-    { label: 'Check in', text: 'Ask: has everyone had a good day? Any plans this weekend?' },
-    { label: 'Remind to follow', text: "Remind new viewers to hit follow so they don't miss the next drop." },
-  ]},
+const CONFIDENCE_BUBBLES = [
+  'Take a breath. Describe what you see — the colour, the shine, how it catches the light.',
+  'Slow down. Deep breath. Smile — you know this piece.',
+  "Mention the weather, how your day's going, anything on your mind.",
+  "Give a hint about what's coming up before you show it.",
+  "Read out a few messages — say people's names.",
+  "Thank whoever just bought — read their name out.",
+  'Ask: has everyone had a good day? Any plans this weekend?',
+  "Remind new viewers to hit follow so they don't miss the next drop.",
+  "Don't forget this, sweetheart — you're doing great.",
 ];
 
 if (!planId) {
@@ -349,29 +340,6 @@ document.getElementById('add-prompt-toggle').addEventListener('click', function 
   document.getElementById('prompt-panel').classList.toggle('open');
 });
 
-function renderPresetList() {
-  const wrap = document.getElementById('preset-list');
-  wrap.innerHTML = PROMPT_PRESETS.map(g => `
-    <div class="prompt-group-heading">${esc(g.group)}</div>
-    ${g.items.map((p, i) => `
-      <button class="preset-btn" type="button" data-group="${esc(g.group)}" data-idx="${i}">
-        <div class="p-label">${esc(p.label)}</div>
-        <div class="p-text">${esc(p.text)}</div>
-      </button>
-    `).join('')}
-  `).join('');
-  wrap.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const group = PROMPT_PRESETS.find(g => g.group === btn.dataset.group);
-      const preset = group.items[Number(btn.dataset.idx)];
-      btn.disabled = true;
-      await addPromptCard(preset.label, preset.text);
-      btn.disabled = false;
-    });
-  });
-}
-renderPresetList();
-
 async function addPromptCard(label, text) {
   await fetch('/api/stream-plan-items', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -433,12 +401,32 @@ document.getElementById('s-query').addEventListener('keydown', e => { if (e.key 
 document.getElementById('s-category').addEventListener('change', runItemSearch);
 
 // ===== Presentation overlay =====
+let bubbleTimeoutId = null;
+
+function scheduleNextBubble() {
+  clearTimeout(bubbleTimeoutId);
+  if (!presentingMode) return;
+  const delay = 45000 + Math.random() * 45000; // 45–90s, randomised
+  bubbleTimeoutId = setTimeout(showRandomBubble, delay);
+}
+
+function showRandomBubble() {
+  if (!presentingMode) return;
+  const text = CONFIDENCE_BUBBLES[Math.floor(Math.random() * CONFIDENCE_BUBBLES.length)];
+  const bubble = document.getElementById('confidence-bubble');
+  document.getElementById('confidence-bubble-text').textContent = text;
+  bubble.classList.add('show');
+  setTimeout(() => { bubble.classList.remove('show'); }, 7000);
+  scheduleNextBubble();
+}
+
 document.getElementById('start-presenting-btn').addEventListener('click', () => {
   const items = planData.items || [];
   if (!items.length) return;
   presentingMode = true;
   const target = items.find(it => !it.complete && it.name !== null) || items.find(it => it.name !== null) || items[0];
   openOverlay(target.id);
+  scheduleNextBubble();
 });
 
 function renderFootnoteStrip() {
@@ -523,6 +511,8 @@ function updateOverlayCompleteState(complete) {
 function closeOverlay() {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('footnote-strip').classList.remove('open');
+  document.getElementById('confidence-bubble').classList.remove('show');
+  clearTimeout(bubbleTimeoutId);
   presentingMode = false;
   currentOverlayItemId = null;
 }
