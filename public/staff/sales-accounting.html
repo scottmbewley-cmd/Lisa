@@ -88,7 +88,6 @@
     <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
     <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px,1fr));">
       <div class="stat-tile"><div class="label">Revenue</div><div class="value" id="stat-revenue">£0.00</div></div>
-      <div class="stat-tile gold"><div class="label">Gross Profit</div><div class="value" id="stat-gross">£0.00</div></div>
     </div>
 
     <h4 class="staff-serif" style="margin:20px 0 10px;">Sales by Category</h4>
@@ -129,7 +128,6 @@
   <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
   <table><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>
     <tr><td>Revenue</td><td id="print-revenue">£0.00</td></tr>
-    <tr><td>Gross Profit</td><td id="print-gross">£0.00</td></tr>
   </tbody></table>
   <h3 style="font-family:'Cormorant Garamond',serif; margin:18px 0 4px; font-size:1.15rem;">Sales by Category<span id="print-category-scope"></span></h3>
   <div id="print-category-wrap"></div>
@@ -212,14 +210,12 @@ async function runReport(from, to) {
     if (!res.ok) { statusEl.textContent = data.error || 'Could not load the report.'; return; }
     statusEl.textContent = data.order_count + ' order' + (data.order_count === 1 ? '' : 's') + ' in this period.';
     document.getElementById('stat-revenue').textContent = money(data.revenue);
-    document.getElementById('stat-gross').textContent = money(data.gross_profit);
 
     lastSalesCategoryData = data.sales_by_category || [];
     renderSalesCategoryTable();
 
     document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
     document.getElementById('print-revenue').textContent = money(data.revenue);
-    document.getElementById('print-gross').textContent = money(data.gross_profit);
   } catch (e) {
     statusEl.textContent = 'Could not load the report — check your connection and try again.';
   }

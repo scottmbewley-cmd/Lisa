@@ -54,7 +54,7 @@
 <main class="staff-main">
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Final Accounting</h1>
-  <p class="staff-muted">Sales and Expenses brought together for a period — the overall picture. Net Profit is Gross Profit minus operating expenses.</p>
+  <p class="staff-muted">Sales and Expenses brought together for a period — the overall picture. Net Profit is simply Revenue minus Total Expenses.</p>
 
   <div class="period-row" id="period-buttons">
     <button class="period-btn active" data-period="month">This Month</button>
@@ -145,11 +145,8 @@ async function runReport(from, to) {
 
     const tableHtml = '<table class="staff-table"><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>' +
       '<tr><td>Revenue</td><td>' + money(data.revenue) + '</td></tr>' +
-      '<tr><td>Cost of Goods Sold</td><td>' + money(data.cogs) + '</td></tr>' +
-      '<tr style="font-weight:700;"><td>Gross Profit</td><td>' + money(data.gross_profit) + '</td></tr>' +
-      '<tr><td>Operating Expenses</td><td>' + money(data.operating_expenses) + '</td></tr>' +
+      '<tr><td>Total Expenses</td><td>' + money(data.total_expenses) + '</td></tr>' +
       '<tr style="font-weight:700;"><td>Net Profit</td><td>' + money(data.net_profit) + '</td></tr>' +
-      '<tr><td>Cash Spent on Inventory Stock (not in profit above)</td><td>' + money(data.stock_cash_spent) + '</td></tr>' +
     '</tbody></table>';
     document.getElementById('breakdown-table-wrap').innerHTML = tableHtml;
 

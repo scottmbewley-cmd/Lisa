@@ -268,18 +268,11 @@ async function handleExpenseEntries(request, env, url) {
 // Revenue: everything actually received (item subtotal + shipping) for
 // non-cancelled orders in the period.
 //
-// COGS (cost of goods sold): the snapshotted line_cost of items sold in
-// this period — not the same thing as money spent buying stock in this
-// period, which is a cash-flow fact and can fall in a completely
-// different period. Gross Profit = Revenue - COGS.
-//
-// Stock cash spent is reported as its own figure and NEVER subtracted
-// from profit directly — it already flows into Gross Profit later, at
-// whatever point that stock actually sells, via COGS. Subtracting it here
-// too would double-count it.
-//
-// Net Profit = Gross Profit - operating expenses, where "operating
-// expenses" is every expenditure category EXCEPT 'Inventory Stock'.
+// Total Expenses: every cost entered for the period, all categories
+// combined — including Inventory Stock, which is not treated as a
+// special case here. This is deliberately cash-basis: a cost counts in
+// the period it was paid, not the period the stock it bought eventually
+// sells in. Net Profit = Revenue - Total Expenses, full stop.
 async function handleAccountingReport(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const from = url.searchParams.get("from");
@@ -289,12 +282,6 @@ async function handleAccountingReport(request, env, url) {
   const revRow = await env.DB.prepare(
     `SELECT COALESCE(SUM(total),0) as revenue, COUNT(*) as order_count
      FROM orders WHERE status != 'cancelled' AND date(created_at) BETWEEN ?1 AND ?2`
-  ).bind(from, to).first();
-
-  const cogsRow = await env.DB.prepare(
-    `SELECT COALESCE(SUM(oi.line_cost),0) as cogs
-     FROM order_items oi JOIN orders o ON o.id = oi.order_id
-     WHERE o.status != 'cancelled' AND date(o.created_at) BETWEEN ?1 AND ?2`
   ).bind(from, to).first();
 
   const { results: byCategory } = await env.DB.prepare(
@@ -314,19 +301,14 @@ async function handleAccountingReport(request, env, url) {
      GROUP BY oi.category ORDER BY amount DESC`
   ).bind(from, to).all();
 
-  const stockRow = byCategory.find(r => r.category === "Inventory Stock");
-  const stockCashSpent = stockRow ? Number(stockRow.amount) : 0;
-  const operatingExpenses = byCategory.filter(r => r.category !== "Inventory Stock").reduce((sum, r) => sum + Number(r.amount), 0);
-
   const revenue = Number(revRow.revenue) || 0;
-  const cogs = Number(cogsRow.cogs) || 0;
-  const grossProfit = revenue - cogs;
-  const netProfit = grossProfit - operatingExpenses;
+  const totalExpenses = byCategory.reduce((sum, r) => sum + Number(r.amount), 0);
+  const netProfit = revenue - totalExpenses;
 
   return json({
     from, to,
-    revenue, order_count: revRow.order_count, cogs, gross_profit: grossProfit,
-    operating_expenses: operatingExpenses, net_profit: netProfit, stock_cash_spent: stockCashSpent,
+    revenue, order_count: revRow.order_count,
+    total_expenses: totalExpenses, net_profit: netProfit,
     expense_by_category: byCategory.map(r => ({ category: r.category, amount: Number(r.amount) })),
     sales_by_category: salesByCategory.map(r => ({ category: r.category, amount: Number(r.amount) })),
   });

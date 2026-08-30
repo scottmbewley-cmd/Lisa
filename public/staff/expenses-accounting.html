@@ -25,6 +25,12 @@
   }
   .cashflow-note strong { color: var(--staff-white); }
 
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin: 18px 0; }
+  .stat-tile { background: var(--staff-card); border: 1px solid var(--staff-line); border-radius: var(--staff-radius); padding: 18px; }
+  .stat-tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); }
+  .stat-tile .value { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: var(--staff-white); margin-top: 6px; }
+  .stat-tile.danger .value { color: var(--staff-danger); }
+
   .cat-filter-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; }
   .cat-filter-row label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; color: var(--staff-white-dim); }
   .cat-filter-row input[type="checkbox"] { width: auto; }
@@ -88,8 +94,12 @@
     </div>
     <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
 
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px,1fr));">
+      <div class="stat-tile danger"><div class="label">Total Expenses</div><div class="value" id="stat-total-expenses">£0.00</div></div>
+    </div>
+
     <div class="cashflow-note">
-      <strong>Cash spent on Inventory Stock this period: <span id="stat-stock-cash">£0.00</span></strong> — money that left the business buying stock. This is a cash-flow fact, not part of profit: it only affects profit once that stock actually sells, which can happen in a different period entirely.
+      <strong>Includes Inventory Stock: <span id="stat-stock-cash">£0.00</span></strong> — logged automatically from Inventory the moment stock is added or restocked, so it's already counted above without needing to be typed in twice.
     </div>
 
     <h4 class="staff-serif" style="margin:20px 0 10px;">Expenditure by Category</h4>
@@ -131,7 +141,8 @@
   <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Expenses Accounting</h2>
   <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
   <table><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>
-    <tr><td>Cash Spent on Inventory Stock</td><td id="print-stock-cash">£0.00</td></tr>
+    <tr><td>Total Expenses</td><td id="print-total-expenses">£0.00</td></tr>
+    <tr><td>Includes Inventory Stock</td><td id="print-stock-cash">£0.00</td></tr>
   </tbody></table>
   <h3 style="font-family:'Cormorant Garamond',serif; margin:18px 0 4px; font-size:1.15rem;">Expenditure by Category<span id="print-category-scope"></span></h3>
   <div id="print-category-wrap"></div>
@@ -147,7 +158,7 @@ function catFilterId(cat) { return 'cf-' + cat.replace(/\s+/g, '-'); }
 const catFilterRow = document.getElementById('cat-filter-row');
 CATEGORY_FILTER_LIST.forEach(cat => {
   const label = document.createElement('label');
-  label.innerHTML = '<input type="checkbox" id="' + catFilterId(cat) + '" checked> ' + (cat === 'Inventory Stock' ? cat + ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow)</span>' : cat);
+  label.innerHTML = '<input type="checkbox" id="' + catFilterId(cat) + '" checked> ' + (cat === 'Inventory Stock' ? cat + ' <span class="staff-muted" style="font-size:0.75rem;">(auto)</span>' : cat);
   catFilterRow.appendChild(label);
 });
 
@@ -197,7 +208,7 @@ function selectedCategoryFilters() {
 }
 function categoryRowHtml(c) {
   const isStock = c.category === 'Inventory Stock';
-  return '<tr' + (isStock ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (isStock ? ' <span class="staff-muted" style="font-size:0.75rem;">(cash flow, not in Net Profit)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>';
+  return '<tr' + (isStock ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (isStock ? ' <span class="staff-muted" style="font-size:0.75rem;">(auto — from Inventory)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>';
 }
 function renderCategoryTable() {
   const selected = selectedCategoryFilters();
@@ -231,12 +242,16 @@ async function runReport(from, to) {
     const data = await res.json();
     if (!res.ok) { statusEl.textContent = data.error || 'Could not load the report.'; return; }
     statusEl.textContent = data.order_count + ' order' + (data.order_count === 1 ? '' : 's') + ' in this period.';
-    document.getElementById('stat-stock-cash').textContent = money(data.stock_cash_spent);
+    document.getElementById('stat-total-expenses').textContent = money(data.total_expenses);
+    const stockRow = (data.expense_by_category || []).find(function (c) { return c.category === 'Inventory Stock'; });
+    const stockCash = stockRow ? stockRow.amount : 0;
+    document.getElementById('stat-stock-cash').textContent = money(stockCash);
     lastCategoryData = data.expense_by_category || [];
     renderCategoryTable();
 
     document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
-    document.getElementById('print-stock-cash').textContent = money(data.stock_cash_spent);
+    document.getElementById('print-total-expenses').textContent = money(data.total_expenses);
+    document.getElementById('print-stock-cash').textContent = money(stockCash);
   } catch (e) {
     statusEl.textContent = 'Could not load the report — check your connection and try again.';
   }
