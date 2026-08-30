@@ -75,7 +75,28 @@
         </select>
       </div>
       <div class="staff-field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. Gold hoop earrings" /></div>
-      <div class="staff-field full"><label>Description</label><textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece. Required — this is what shows to customers on hover."></textarea></div>
+      <div class="staff-field full">
+        <label>Description</label>
+        <textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece. Required — this is what shows to customers on hover."></textarea>
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <select id="f-material-picker" style="flex:1;">
+            <option value="">+ Add material...</option>
+            <option value="316L Stainless Steel, 18K Gold Plated">316L Stainless Steel, 18K Gold Plated</option>
+            <option value="316L Stainless Steel, 14K Gold Plated">316L Stainless Steel, 14K Gold Plated</option>
+            <option value="316L Stainless Steel, Uncoated">316L Stainless Steel, Uncoated</option>
+            <option value="304 Stainless Steel, 18K Gold Plated">304 Stainless Steel, 18K Gold Plated</option>
+            <option value="304 Stainless Steel, 14K Gold Plated">304 Stainless Steel, 14K Gold Plated</option>
+            <option value="304 Stainless Steel, Uncoated">304 Stainless Steel, Uncoated</option>
+          </select>
+          <select id="f-stone-picker" style="flex:1;">
+            <option value="">+ Add stone...</option>
+            <option value="Moissanite">Moissanite</option>
+            <option value="Rhinestone">Rhinestone</option>
+            <option value="Cubic Zirconia">Cubic Zirconia</option>
+            <option value="Gemstone">Gemstone</option>
+          </select>
+        </div>
+      </div>
       <div class="staff-field"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. Everful Wholesale" /></div>
       <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
       <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
@@ -302,6 +323,16 @@ function openForEdit(row) {
   document.getElementById('cancel-edit-btn').style.display = '';
   document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+function appendToDescription(text) {
+  const el = document.getElementById('f-description');
+  el.value = el.value.trim() ? el.value.trim() + ', ' + text : text;
+}
+document.getElementById('f-material-picker').addEventListener('change', function () {
+  if (this.value) { appendToDescription(this.value); this.value = ''; }
+});
+document.getElementById('f-stone-picker').addEventListener('change', function () {
+  if (this.value) { appendToDescription(this.value); this.value = ''; }
+});
 document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
 
 document.getElementById('save-btn').addEventListener('click', async () => {
