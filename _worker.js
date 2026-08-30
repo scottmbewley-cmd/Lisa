@@ -1001,10 +1001,14 @@ async function handleOrders(request, env, url) {
       return json({ order, items });
     }
     const status = url.searchParams.get("status") || "";
+    const sort = url.searchParams.get("sort") || "";
     let sql = `SELECT o.*, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count FROM orders o`;
     const binds = [];
     if (status) { sql += ` WHERE o.status = ?1`; binds.push(status); }
-    sql += ` ORDER BY o.created_at DESC`;
+    // 'invoice' sorts by id ASC (numerical order, INV-0001 first) for the
+    // Accounting ledger view; every other caller (Orders & Sales, Delivery)
+    // keeps the existing newest-first behaviour unchanged.
+    sql += sort === "invoice" ? ` ORDER BY o.id ASC` : ` ORDER BY o.created_at DESC`;
     const { results } = await env.DB.prepare(sql).bind(...binds).all();
     return json(results);
   }
