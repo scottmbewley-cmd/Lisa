@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 <style>
   .period-row { display: flex; gap: 10px; margin: 20px 0 22px; flex-wrap: wrap; align-items: center; }
   .period-btn {
@@ -295,6 +296,12 @@ async function loadRecentEntries() {
 }
 
 document.getElementById('e-date').value = todayISO();
+
+const logCostTracker = staffTrackUnsaved(
+  [document.getElementById('e-date'), document.getElementById('e-category'), document.getElementById('e-amount'), document.getElementById('e-paid-from'), document.getElementById('e-notes')],
+  document.getElementById('save-entry-btn')
+);
+
 document.getElementById('save-entry-btn').addEventListener('click', async () => {
   const msgEl = document.getElementById('entry-status-msg');
   const category = document.getElementById('e-category').value;
@@ -316,6 +323,7 @@ document.getElementById('save-entry-btn').addEventListener('click', async () => 
     if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved.';
+    logCostTracker.markSaved();
     document.getElementById('e-category').value = '';
     document.getElementById('e-amount').value = '';
     document.getElementById('e-paid-from').value = '';

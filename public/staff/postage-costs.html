@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 </head>
 <body class="staff-body">
 
@@ -47,6 +48,8 @@ async function loadPostageCost() {
   document.getElementById('s-postage-cost').value = settings.postage_cost !== undefined && settings.postage_cost !== null ? settings.postage_cost : '2.50';
 }
 
+const postageTracker = staffTrackUnsaved([document.getElementById('s-postage-cost')], document.getElementById('postage-save-btn'));
+
 document.getElementById('postage-save-btn').addEventListener('click', async function () {
   const msgEl = document.getElementById('postage-msg');
   const val = document.getElementById('s-postage-cost').value.trim();
@@ -62,6 +65,7 @@ document.getElementById('postage-save-btn').addEventListener('click', async func
     if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not save that.'; return; }
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved — applies to orders placed from now on.';
+    postageTracker.markSaved();
     await loadPostageCost();
   } catch (e) {
     msgEl.style.color = 'var(--staff-danger)';

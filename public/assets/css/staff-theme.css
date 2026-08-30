@@ -225,3 +225,24 @@ body.staff-body {
 .staff-lib-card.active span { color: var(--staff-gold); }
 
 .staff-del-btn { background: none; border: none; color: var(--staff-danger); cursor: pointer; font-size: 0.85rem; text-decoration: underline; }
+
+/* Unsaved-changes state, shared by every save button in the staff area.
+   .needs-save = something changed and hasn't been saved yet (impossible to
+   miss, pulses). .just-saved = confirms the save landed, then fades back
+   to normal automatically. See assets/js/staff-common.js. */
+.staff-btn.needs-save {
+  background: var(--staff-danger) !important;
+  border-color: var(--staff-danger) !important;
+  color: #1A1714 !important;
+  animation: staff-unsaved-pulse 1.1s ease-in-out infinite;
+}
+@keyframes staff-unsaved-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.staff-btn.just-saved {
+  background: var(--staff-ok) !important;
+  border-color: var(--staff-ok) !important;
+  color: #1A1714 !important;
+  animation: none;
+}

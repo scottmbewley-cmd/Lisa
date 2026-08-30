@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 <style>
   .lib-toggle { display: flex; gap: 12px; margin: 20px 0 26px; flex-wrap: wrap; }
   #status-msg { font-size: 0.85rem; margin: 10px 0; min-height: 20px; }
@@ -259,6 +260,12 @@ document.getElementById('lib-tabs').addEventListener('click', (e) => {
   document.querySelectorAll('.lib-panel').forEach(p => p.classList.toggle('active', p.dataset.lib === lib));
 });
 
+// No natural form fields to track here (the library toggle is a set of
+// clickable cards, not standard inputs), so this tracker is driven
+// manually: markDirty() on each toggle click, markSaved() once the save
+// call succeeds.
+const libTracker = staffTrackUnsaved([], document.getElementById('save-libs-btn'));
+
 document.querySelectorAll('.staff-lib-card').forEach(card => {
   card.addEventListener('click', () => {
     const lib = card.dataset.lib;
@@ -266,8 +273,7 @@ document.querySelectorAll('.staff-lib-card').forEach(card => {
       ? activeLibraries.filter(l => l !== lib)
       : activeLibraries.concat([lib]);
     renderToggle();
-    document.getElementById('lib-status-msg').textContent = 'Not saved yet — click Save Changes.';
-    document.getElementById('lib-status-msg').style.color = '';
+    libTracker.markDirty();
   });
 });
 
@@ -281,6 +287,7 @@ document.getElementById('save-libs-btn').addEventListener('click', async () => {
   if (res.ok) {
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved — public Shop page reflects this immediately.';
+    libTracker.markSaved();
     await loadAll();
   } else {
     msgEl.style.color = 'var(--staff-danger)';

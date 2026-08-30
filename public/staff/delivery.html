@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 <style>
   .orders-row { cursor: pointer; }
   .orders-row:hover td { background: rgba(255,255,255,0.03); }
@@ -164,6 +165,11 @@ document.getElementById('s-toggle').addEventListener('change', function () {
   document.getElementById('s-fields').style.display = this.checked ? '' : 'none';
 });
 
+const returnAddressTracker = staffTrackUnsaved(
+  [document.getElementById('s-toggle'), document.getElementById('s-name'), document.getElementById('s-address')],
+  document.getElementById('settings-save-btn')
+);
+
 document.getElementById('settings-save-btn').addEventListener('click', async function () {
   const msgEl = document.getElementById('settings-msg');
   const btn = this;
@@ -181,6 +187,7 @@ document.getElementById('settings-save-btn').addEventListener('click', async fun
     if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not save that.'; return; }
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved.';
+    returnAddressTracker.markSaved();
     await loadSettings();
   } catch (e) {
     msgEl.style.color = 'var(--staff-danger)';

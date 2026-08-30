@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 <style>
   .ce-section { margin-bottom: 40px; }
 
@@ -187,6 +188,7 @@ viewport.addEventListener('pointerdown', (e) => {
   dragStartX = e.clientX; dragStartY = e.clientY;
   dragStartTx = tx; dragStartTy = ty;
   viewport.setPointerCapture(e.pointerId);
+  if (typeof storyTracker !== 'undefined') storyTracker.markDirty();
 });
 viewport.addEventListener('pointermove', (e) => {
   if (!dragging) return;
@@ -207,6 +209,7 @@ viewport.addEventListener('wheel', (e) => {
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
   const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
   setScale(scale * factor, cx, cy);
+  if (typeof storyTracker !== 'undefined') storyTracker.markDirty();
 }, { passive: false });
 
 let pinchStartDist = 0, pinchStartScale = 1, pinchStartTx = 0, pinchStartTy = 0, pinchStartCx = 0, pinchStartCy = 0;
@@ -242,11 +245,13 @@ viewport.addEventListener('touchmove', (e) => {
   clampTranslate();
   applyTransform();
   zoomSlider.value = Math.round(scaleToSlider(scale));
+  if (typeof storyTracker !== 'undefined') storyTracker.markDirty();
 }, { passive: false });
 
 zoomSlider.addEventListener('input', () => {
   if (!cropLoaded) return;
   setScale(sliderToScale(Number(zoomSlider.value)));
+  if (typeof storyTracker !== 'undefined') storyTracker.markDirty();
 });
 
 function renderCropToBlob(outW, outH) {
@@ -298,6 +303,7 @@ document.getElementById('hero-file').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   loadCropImage(URL.createObjectURL(file));
+  storyTracker.markDirty();
 });
 document.getElementById('remove-photo-link').addEventListener('click', () => {
   cropLoaded = false;
@@ -305,7 +311,13 @@ document.getElementById('remove-photo-link').addEventListener('click', () => {
   cropImg.src = '';
   document.getElementById('status-msg').textContent = 'Photo will be removed when you save.';
   document.getElementById('status-msg').style.color = '';
+  storyTracker.markDirty();
 });
+
+const storyTracker = staffTrackUnsaved(
+  [document.getElementById('f-eyebrow'), document.getElementById('f-heading'), document.getElementById('f-para1'), document.getElementById('f-para2'), document.getElementById('f-note')],
+  document.getElementById('save-btn')
+);
 
 async function fetchWithTimeout(url, options, ms) {
   const controller = new AbortController();
@@ -367,6 +379,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     }
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved — Story page updated.';
+    storyTracker.markSaved();
     await loadAll();
   } catch (err) {
     if (err.name === 'AbortError') {

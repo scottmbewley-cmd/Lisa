@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 <style>
   .inv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
   .inv-grid .full { grid-column: 1 / -1; }
@@ -260,7 +261,7 @@ function setPhotoPreview(url) {
   }
 }
 document.getElementById('photo-btn').addEventListener('click', () => document.getElementById('f-photo-file').click());
-document.getElementById('photo-clear-btn').addEventListener('click', () => { pendingPhotoFile = null; setPhotoPreview(''); });
+document.getElementById('photo-clear-btn').addEventListener('click', () => { pendingPhotoFile = null; setPhotoPreview(''); invTracker.markDirty(); });
 document.getElementById('f-photo-file').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -333,7 +334,12 @@ document.getElementById('f-material-picker').addEventListener('change', function
 document.getElementById('f-stone-picker').addEventListener('change', function () {
   if (this.value) { appendToDescription(this.value); this.value = ''; }
 });
-document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+document.getElementById('cancel-edit-btn').addEventListener('click', function () { resetForm(); invTracker.reset(); });
+
+const invTracker = staffTrackUnsaved(
+  ['f-category','f-name','f-description','f-supplier','f-supplier-code','f-quantity','f-reorder','f-currency','f-usd-amount','f-usd-rate','f-cost','f-price','f-photo-file','f-material-picker','f-stone-picker'].map(id => document.getElementById(id)),
+  document.getElementById('save-btn')
+);
 
 document.getElementById('save-btn').addEventListener('click', async () => {
   const msgEl = document.getElementById('status-msg');
@@ -391,6 +397,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
       if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
       msgEl.style.color = 'var(--staff-ok)';
       msgEl.textContent = 'Saved.';
+      invTracker.markSaved();
     } else {
       res = await fetchWithTimeout('/api/inv-items', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -399,6 +406,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
       if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong adding that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
       msgEl.style.color = 'var(--staff-ok)';
       msgEl.textContent = 'Added — SKU ' + data.sku + '. Live in the shop now.';
+      invTracker.markSaved();
     }
     resetForm();
     loadLowStock();

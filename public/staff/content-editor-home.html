@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
 <style>
   .ce-section { margin-bottom: 40px; }
 
@@ -202,6 +203,7 @@ viewport.addEventListener('pointerdown', (e) => {
   dragStartX = e.clientX; dragStartY = e.clientY;
   dragStartTx = tx; dragStartTy = ty;
   viewport.setPointerCapture(e.pointerId);
+  if (typeof homeTracker !== 'undefined') homeTracker.markDirty();
 });
 viewport.addEventListener('pointermove', (e) => {
   if (!dragging) return;
@@ -226,6 +228,7 @@ viewport.addEventListener('wheel', (e) => {
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
   const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
   setScale(scale * factor, cx, cy);
+  if (typeof homeTracker !== 'undefined') homeTracker.markDirty();
 }, { passive: false });
 
 /* Pinch zoom (two-finger touch) */
@@ -268,11 +271,13 @@ viewport.addEventListener('touchmove', (e) => {
   clampTranslate();
   applyTransform();
   zoomSlider.value = Math.round(scaleToSlider(scale));
+  if (typeof homeTracker !== 'undefined') homeTracker.markDirty();
 }, { passive: false });
 
 zoomSlider.addEventListener('input', () => {
   if (!cropLoaded) return;
   setScale(sliderToScale(Number(zoomSlider.value)));
+  if (typeof homeTracker !== 'undefined') homeTracker.markDirty();
 });
 
 /* Render current crop framing to a fixed-size canvas, return a Blob.
@@ -355,6 +360,7 @@ function renderPickGrid() {
     select.addEventListener('change', () => {
       homeContent[field] = select.value || null;
       renderPickGrid();
+      if (typeof homeTracker !== 'undefined') homeTracker.markDirty();
     });
     wrap.appendChild(select);
 
@@ -370,7 +376,13 @@ document.getElementById('hero-file').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   loadCropImage(URL.createObjectURL(file));
+  homeTracker.markDirty();
 });
+
+const homeTracker = staffTrackUnsaved(
+  [document.getElementById('why-heading'), document.getElementById('why-body')],
+  document.getElementById('save-btn')
+);
 
 async function fetchWithTimeout(url, options, ms) {
   const controller = new AbortController();
@@ -431,6 +443,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     }
     msgEl.style.color = 'var(--staff-ok)';
     msgEl.textContent = 'Saved — homepage updated.';
+    homeTracker.markSaved();
     await loadAll();
   } catch (err) {
     if (err.name === 'AbortError') {
