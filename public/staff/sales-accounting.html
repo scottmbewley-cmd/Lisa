@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sales Accounting — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .period-row { display: flex; gap: 10px; margin: 20px 0 22px; flex-wrap: wrap; align-items: center; }
+  .period-btn {
+    background: none; border: 1px solid var(--staff-line); cursor: pointer;
+    padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; color: var(--staff-white-dim);
+    font-family: inherit;
+  }
+  .period-btn.active { border-color: var(--staff-gold); color: var(--staff-gold); background: rgba(212,175,106,0.08); }
+  .custom-range-row { display: none; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .custom-range-row.open { display: flex; }
+  .custom-range-row .staff-field { margin-bottom: 0; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin: 18px 0; }
+  .stat-tile { background: var(--staff-card); border: 1px solid var(--staff-line); border-radius: var(--staff-radius); padding: 18px; }
+  .stat-tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); }
+  .stat-tile .value { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: var(--staff-white); margin-top: 6px; }
+  .stat-tile.gold .value { color: var(--staff-gold); }
+
+  .inv-search-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 14px; align-items: end; }
+  .inv-search-row .staff-field { margin-bottom: 0; }
+  #inv-search-status { font-size: 0.85rem; min-height: 20px; margin: 12px 0 0; }
+  .orders-row { cursor: pointer; }
+  .orders-row:hover td { background: rgba(255,255,255,0.03); }
+  .orders-row.selected td { background: rgba(212,175,106,0.06); }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Sales Accounting · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Sales Accounting</h1>
+  <p class="staff-muted">Money coming in. The sales report for a period, and every invoice ever raised.</p>
+
+  <div class="period-row" id="period-buttons">
+    <button class="period-btn active" data-period="month">This Month</button>
+    <button class="period-btn" data-period="quarter">This Quarter</button>
+    <button class="period-btn" data-period="year">This Year</button>
+    <button class="period-btn" data-period="custom">Custom Range</button>
+  </div>
+  <div class="custom-range-row" id="custom-range-row">
+    <div class="staff-field"><label>From</label><input type="date" id="custom-from" /></div>
+    <div class="staff-field"><label>To</label><input type="date" id="custom-to" /></div>
+    <button class="staff-btn" id="custom-apply-btn" style="padding:11px 22px;">Apply</button>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+    <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px,1fr));">
+      <div class="stat-tile"><div class="label">Revenue</div><div class="value" id="stat-revenue">£0.00</div></div>
+      <div class="stat-tile gold"><div class="label">Gross Profit</div><div class="value" id="stat-gross">£0.00</div></div>
+    </div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Invoices</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">Search by invoice number, customer name, email, or postcode — for refunds, returns, and HMRC records. Or browse everything below, grouped by month.</p>
+    <div class="inv-search-row">
+      <div class="staff-field"><label>Search</label><input type="text" id="inv-q" placeholder="e.g. INV-0004, Jane Smith, jane@email.com, SO41 …" /></div>
+      <div class="staff-field"><label>From (optional)</label><input type="date" id="inv-from" /></div>
+      <div class="staff-field"><label>To (optional)</label><input type="date" id="inv-to" /></div>
+      <button class="staff-btn" id="inv-search-btn" type="button" style="padding:11px 22px;">Search</button>
+    </div>
+    <div id="inv-search-status"></div>
+    <div id="inv-results-wrap"></div>
+
+    <div id="ledger-browse-wrap">
+      <h4 class="staff-serif" style="margin:22px 0 8px;">Browse All</h4>
+      <div id="ledger-status" class="staff-muted" style="font-size:0.85rem; margin-bottom:10px;">Loading…</div>
+      <div id="ledger-groups-wrap"></div>
+    </div>
+
+    <div id="inv-detail-wrap"></div>
+  </div>
+</main>
+
+<script>
+let activePeriod = 'month';
+let currentFrom = '', currentTo = '';
+
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function money(n) { return '£' + Number(n || 0).toFixed(2); }
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function fmtDateTime(s) {
+  if (!s) return '—';
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+function statusLabel(s) { return { paid: 'Paid', posted: 'Paid, Moved to Delivery', cancelled: 'Cancelled' }[s] || s; }
+function toISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+function todayISO() { return toISO(new Date()); }
+
+function periodRange(period) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if (period === 'month') return [toISO(new Date(y, m, 1)), toISO(new Date(y, m + 1, 0))];
+  if (period === 'quarter') { const qStartMonth = Math.floor(m / 3) * 3; return [toISO(new Date(y, qStartMonth, 1)), toISO(new Date(y, qStartMonth + 3, 0))]; }
+  if (period === 'year') return [toISO(new Date(y, 0, 1)), toISO(new Date(y, 11, 31))];
+  return [currentFrom, currentTo];
+}
+function periodLabel(period, from, to) {
+  if (period === 'month') return new Date(from).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  if (period === 'quarter') { const q = Math.floor(new Date(from).getMonth() / 3) + 1; return 'Q' + q + ' ' + new Date(from).getFullYear(); }
+  if (period === 'year') return String(new Date(from).getFullYear());
+  return from + ' to ' + to;
+}
+
+document.getElementById('period-buttons').addEventListener('click', (e) => {
+  const btn = e.target.closest('.period-btn');
+  if (!btn) return;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b === btn));
+  activePeriod = btn.dataset.period;
+  document.getElementById('custom-range-row').classList.toggle('open', activePeriod === 'custom');
+  if (activePeriod !== 'custom') { const [from, to] = periodRange(activePeriod); runReport(from, to); }
+});
+document.getElementById('custom-apply-btn').addEventListener('click', () => {
+  const from = document.getElementById('custom-from').value;
+  const to = document.getElementById('custom-to').value;
+  if (!from || !to) { document.getElementById('report-status').textContent = 'Pick both a from and to date.'; return; }
+  if (from > to) { document.getElementById('report-status').textContent = '"From" must be before "To".'; return; }
+  runReport(from, to);
+});
+
+async function runReport(from, to) {
+  currentFrom = from; currentTo = to;
+  const statusEl = document.getElementById('report-status');
+  statusEl.textContent = 'Loading…';
+  document.getElementById('report-period-label').textContent = periodLabel(activePeriod, from, to);
+  try {
+    const res = await fetch('/api/accounting-report?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+    const data = await res.json();
+    if (!res.ok) { statusEl.textContent = data.error || 'Could not load the report.'; return; }
+    statusEl.textContent = data.order_count + ' order' + (data.order_count === 1 ? '' : 's') + ' in this period.';
+    document.getElementById('stat-revenue').textContent = money(data.revenue);
+    document.getElementById('stat-gross').textContent = money(data.gross_profit);
+  } catch (e) {
+    statusEl.textContent = 'Could not load the report — check your connection and try again.';
+  }
+}
+
+function invoiceRowHtml(o) {
+  return '<tr class="orders-row" data-id="' + o.id + '">' +
+    '<td>' + esc(o.invoice_number || ('#' + o.id)) + '</td>' +
+    '<td class="staff-muted">' + fmtDate(o.created_at) + '</td>' +
+    '<td>' + esc(o.customer_name) + '</td>' +
+    '<td class="staff-muted">' + esc(o.postcode) + '</td>' +
+    '<td>' + money(o.total) + '</td>' +
+    '<td>' + statusLabel(o.status) + '</td>' +
+  '</tr>';
+}
+function invoiceDetailHtml(o, items) {
+  const timelineParts = ['<strong style="color:var(--staff-ok);">Paid</strong> ' + fmtDateTime(o.created_at)];
+  if (o.posted_at) timelineParts.push('Posted ' + fmtDateTime(o.posted_at));
+  if (o.cancelled_at) timelineParts.push('<span style="color:var(--staff-danger);">Cancelled</span> ' + fmtDateTime(o.cancelled_at));
+  return '' +
+    '<div class="staff-card" style="border-top: 1px solid var(--staff-line); margin-top:14px;">' +
+      '<h4 class="staff-serif" style="margin:0 0 6px;">' + esc(o.invoice_number || ('Order #' + o.id)) + '</h4>' +
+      '<p class="staff-muted" style="font-size:0.85rem; margin:0 0 14px;">' + timelineParts.join(' · ') + '</p>' +
+      '<p style="margin:0 0 4px;"><strong>' + esc(o.customer_name) + '</strong></p>' +
+      '<p class="staff-muted" style="margin:0 0 4px;">' + [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join(', ') + '</p>' +
+      '<p class="staff-muted" style="margin:0 0 14px;">' + esc(o.customer_email) + '</p>' +
+      '<table class="staff-table"><thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>' +
+        items.map(function (it) { return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>'; }).join('') +
+        '<tr><td colspan="4" style="text-align:right;">Subtotal</td><td>' + money(o.subtotal) + '</td></tr>' +
+        '<tr><td colspan="4" style="text-align:right;">Shipping</td><td>' + money(o.shipping) + '</td></tr>' +
+        '<tr><td colspan="4" style="text-align:right; font-weight:700;">Total</td><td style="font-weight:700;">' + money(o.total) + '</td></tr>' +
+      '</tbody></table>' +
+    '</div>';
+}
+async function openInvoiceDetail(id) {
+  document.querySelectorAll('.orders-row').forEach(function (r) { r.classList.toggle('selected', r.dataset.id === String(id)); });
+  const detailWrap = document.getElementById('inv-detail-wrap');
+  detailWrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem; margin-top:14px;">Loading…</p>';
+  try {
+    const res = await fetch('/api/orders?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!res.ok) { detailWrap.innerHTML = '<p style="color:var(--staff-danger); font-size:0.85rem; margin-top:14px;">' + (data.error || 'Could not load that invoice.') + '</p>'; return; }
+    detailWrap.innerHTML = invoiceDetailHtml(data.order, data.items);
+  } catch (e) {
+    detailWrap.innerHTML = '<p style="color:var(--staff-danger); font-size:0.85rem; margin-top:14px;">Could not load that invoice — check your connection.</p>';
+  }
+}
+function monthKey(s) {
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function monthLabel(key) {
+  const parts = key.split('-');
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+async function loadLedger() {
+  const statusEl = document.getElementById('ledger-status');
+  const wrap = document.getElementById('ledger-groups-wrap');
+  statusEl.textContent = 'Loading…';
+  try {
+    const res = await fetch('/api/orders?sort=invoice');
+    const rows = await res.json();
+    if (!rows.length) { statusEl.textContent = 'No invoices raised yet.'; wrap.innerHTML = ''; return; }
+    statusEl.textContent = rows.length + ' invoice' + (rows.length === 1 ? '' : 's') + ' total.';
+    const groups = {};
+    rows.forEach(function (o) { const key = monthKey(o.created_at); (groups[key] = groups[key] || []).push(o); });
+    const sortedKeys = Object.keys(groups).sort().reverse();
+    wrap.innerHTML = sortedKeys.map(function (key, idx) {
+      const groupRows = groups[key];
+      return '<details' + (idx === 0 ? ' open' : '') + ' style="margin-bottom:10px; border:1px solid var(--staff-line); border-radius:var(--staff-radius); overflow:hidden;">' +
+        '<summary style="cursor:pointer; padding:12px 16px; font-family:\'Cormorant Garamond\',serif; font-size:1.1rem; background:rgba(255,255,255,0.02);">' + monthLabel(key) + ' <span class="staff-muted" style="font-size:0.8rem;">(' + groupRows.length + ')</span></summary>' +
+        '<div style="max-height:340px; overflow-y:auto;"><table class="staff-table" style="margin:0;"><thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead><tbody>' + groupRows.map(invoiceRowHtml).join('') + '</tbody></table></div></details>';
+    }).join('');
+    wrap.querySelectorAll('.orders-row').forEach(function (row) { row.addEventListener('click', function () { openInvoiceDetail(row.dataset.id); }); });
+  } catch (e) {
+    statusEl.textContent = 'Could not load invoices — check your connection and reload.';
+  }
+}
+async function runInvoiceSearch() {
+  const q = document.getElementById('inv-q').value.trim();
+  const from = document.getElementById('inv-from').value;
+  const to = document.getElementById('inv-to').value;
+  const statusEl = document.getElementById('inv-search-status');
+  const resultsWrap = document.getElementById('inv-results-wrap');
+  const browseWrap = document.getElementById('ledger-browse-wrap');
+  document.getElementById('inv-detail-wrap').innerHTML = '';
+  statusEl.style.color = '';
+  if (!q) { statusEl.textContent = ''; resultsWrap.innerHTML = ''; browseWrap.style.display = ''; return; }
+  browseWrap.style.display = 'none';
+  statusEl.textContent = 'Searching…';
+  try {
+    let url = '/api/invoice-search?q=' + encodeURIComponent(q);
+    if (from) url += '&from=' + encodeURIComponent(from);
+    if (to) url += '&to=' + encodeURIComponent(to);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) { statusEl.style.color = 'var(--staff-danger)'; statusEl.textContent = data.error || 'Search failed.'; resultsWrap.innerHTML = ''; return; }
+    const matches = data.orders || [];
+    if (!matches.length) { statusEl.textContent = 'No matching invoices.'; resultsWrap.innerHTML = ''; return; }
+    statusEl.textContent = matches.length + ' match' + (matches.length === 1 ? '' : 'es') + '.';
+    resultsWrap.innerHTML = '<table class="staff-table"><thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead><tbody>' + matches.map(function (m) { return invoiceRowHtml(m.order); }).join('') + '</tbody></table>';
+    resultsWrap.querySelectorAll('.orders-row').forEach(function (row) { row.addEventListener('click', function () { openInvoiceDetail(row.dataset.id); }); });
+    if (matches.length === 1) openInvoiceDetail(matches[0].order.id);
+  } catch (e) {
+    statusEl.style.color = 'var(--staff-danger)';
+    statusEl.textContent = 'Could not search — check your connection and try again.';
+  }
+}
+document.getElementById('inv-search-btn').addEventListener('click', runInvoiceSearch);
+document.getElementById('inv-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') runInvoiceSearch(); });
+
+const [initFrom, initTo] = periodRange('month');
+runReport(initFrom, initTo);
+loadLedger();
+</script>
+</body>
+</html>

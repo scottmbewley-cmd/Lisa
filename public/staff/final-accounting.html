@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Final Accounting — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .period-row { display: flex; gap: 10px; margin: 20px 0 22px; flex-wrap: wrap; align-items: center; }
+  .period-btn {
+    background: none; border: 1px solid var(--staff-line); cursor: pointer;
+    padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; color: var(--staff-white-dim);
+    font-family: inherit;
+  }
+  .period-btn.active { border-color: var(--staff-gold); color: var(--staff-gold); background: rgba(212,175,106,0.08); }
+  .custom-range-row { display: none; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .custom-range-row.open { display: flex; }
+  .custom-range-row .staff-field { margin-bottom: 0; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin: 18px 0; }
+  .stat-tile { background: var(--staff-card); border: 1px solid var(--staff-line); border-radius: var(--staff-radius); padding: 18px; }
+  .stat-tile .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); }
+  .stat-tile .value { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: var(--staff-white); margin-top: 6px; }
+  .stat-tile.ok .value { color: var(--staff-ok); }
+
+  @media print {
+    body.staff-body > *:not(#print-area) { display: none !important; }
+    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
+    #print-area th { background: #eee; }
+    #print-area .total-row td { background: #f5f5f5; font-weight: 700; }
+  }
+  .print-only { display: none; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Final Accounting · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Final Accounting</h1>
+  <p class="staff-muted">Sales and Expenses brought together for a period — the overall picture. Net Profit is Gross Profit minus operating expenses.</p>
+
+  <div class="period-row" id="period-buttons">
+    <button class="period-btn active" data-period="month">This Month</button>
+    <button class="period-btn" data-period="quarter">This Quarter</button>
+    <button class="period-btn" data-period="year">This Year</button>
+    <button class="period-btn" data-period="custom">Custom Range</button>
+  </div>
+  <div class="custom-range-row" id="custom-range-row">
+    <div class="staff-field"><label>From</label><input type="date" id="custom-from" /></div>
+    <div class="staff-field"><label>To</label><input type="date" id="custom-to" /></div>
+    <button class="staff-btn" id="custom-apply-btn" style="padding:11px 22px;">Apply</button>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
+      <h3 class="staff-serif" style="margin:0;" id="report-period-label">This Month</h3>
+      <button class="staff-btn outline" id="print-report-btn" type="button" style="padding:8px 16px;">Print Report</button>
+    </div>
+    <p class="staff-muted" id="report-status" style="font-size:0.85rem;">Loading…</p>
+
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px,1fr));">
+      <div class="stat-tile ok"><div class="label">Net Profit</div><div class="value" id="stat-net">£0.00</div></div>
+    </div>
+
+    <div id="breakdown-table-wrap" style="margin-top:20px;"></div>
+  </div>
+</main>
+
+<div id="print-area" class="print-only">
+  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Final Accounting</h2>
+  <p id="print-period" style="margin:0 0 16px; font-size:0.9rem;"></p>
+  <div id="print-body-wrap"></div>
+</div>
+
+<script>
+let activePeriod = 'month';
+let currentFrom = '', currentTo = '';
+
+function money(n) { return '£' + Number(n || 0).toFixed(2); }
+function toISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+function periodRange(period) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if (period === 'month') return [toISO(new Date(y, m, 1)), toISO(new Date(y, m + 1, 0))];
+  if (period === 'quarter') { const qStartMonth = Math.floor(m / 3) * 3; return [toISO(new Date(y, qStartMonth, 1)), toISO(new Date(y, qStartMonth + 3, 0))]; }
+  if (period === 'year') return [toISO(new Date(y, 0, 1)), toISO(new Date(y, 11, 31))];
+  return [currentFrom, currentTo];
+}
+function periodLabel(period, from, to) {
+  if (period === 'month') return new Date(from).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  if (period === 'quarter') { const q = Math.floor(new Date(from).getMonth() / 3) + 1; return 'Q' + q + ' ' + new Date(from).getFullYear(); }
+  if (period === 'year') return String(new Date(from).getFullYear());
+  return from + ' to ' + to;
+}
+
+document.getElementById('period-buttons').addEventListener('click', (e) => {
+  const btn = e.target.closest('.period-btn');
+  if (!btn) return;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b === btn));
+  activePeriod = btn.dataset.period;
+  document.getElementById('custom-range-row').classList.toggle('open', activePeriod === 'custom');
+  if (activePeriod !== 'custom') { const [from, to] = periodRange(activePeriod); runReport(from, to); }
+});
+document.getElementById('custom-apply-btn').addEventListener('click', () => {
+  const from = document.getElementById('custom-from').value;
+  const to = document.getElementById('custom-to').value;
+  if (!from || !to) { document.getElementById('report-status').textContent = 'Pick both a from and to date.'; return; }
+  if (from > to) { document.getElementById('report-status').textContent = '"From" must be before "To".'; return; }
+  runReport(from, to);
+});
+
+async function runReport(from, to) {
+  currentFrom = from; currentTo = to;
+  const statusEl = document.getElementById('report-status');
+  statusEl.textContent = 'Loading…';
+  document.getElementById('report-period-label').textContent = periodLabel(activePeriod, from, to);
+  try {
+    const res = await fetch('/api/accounting-report?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+    const data = await res.json();
+    if (!res.ok) { statusEl.textContent = data.error || 'Could not load the report.'; return; }
+    statusEl.textContent = data.order_count + ' order' + (data.order_count === 1 ? '' : 's') + ' in this period.';
+    document.getElementById('stat-net').textContent = money(data.net_profit);
+
+    const tableHtml = '<table class="staff-table"><thead><tr><th>Figure</th><th>Amount</th></tr></thead><tbody>' +
+      '<tr><td>Revenue</td><td>' + money(data.revenue) + '</td></tr>' +
+      '<tr><td>Cost of Goods Sold</td><td>' + money(data.cogs) + '</td></tr>' +
+      '<tr style="font-weight:700;"><td>Gross Profit</td><td>' + money(data.gross_profit) + '</td></tr>' +
+      '<tr><td>Operating Expenses</td><td>' + money(data.operating_expenses) + '</td></tr>' +
+      '<tr style="font-weight:700;"><td>Net Profit</td><td>' + money(data.net_profit) + '</td></tr>' +
+      '<tr><td>Cash Spent on Inventory Stock (not in profit above)</td><td>' + money(data.stock_cash_spent) + '</td></tr>' +
+    '</tbody></table>';
+    document.getElementById('breakdown-table-wrap').innerHTML = tableHtml;
+
+    document.getElementById('print-period').textContent = periodLabel(activePeriod, from, to);
+    document.getElementById('print-body-wrap').innerHTML = tableHtml.replace('class="staff-table"', '');
+  } catch (e) {
+    statusEl.textContent = 'Could not load the report — check your connection and try again.';
+  }
+}
+
+document.getElementById('print-report-btn').addEventListener('click', () => window.print());
+
+const [initFrom, initTo] = periodRange('month');
+runReport(initFrom, initTo);
+</script>
+</body>
+</html>
