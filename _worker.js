@@ -46,6 +46,179 @@ function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+async function handleInvReport(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+  const raw = (url.searchParams.get("categories") || "").split(",").map(s => s.trim()).filter(Boolean);
+  const cats = raw.length ? raw.filter(c => allCats.includes(c)) : allCats;
+  if (!cats.length) return json({ summary: [], items: [] });
+  const placeholders = cats.map((_, i) => `?${i + 1}`).join(",");
+  const { results: summaryRows } = await env.DB.prepare(
+    `SELECT category,
+            COUNT(*) as items,
+            COALESCE(SUM(quantity),0) as total_qty,
+            COALESCE(SUM(quantity * sell_price),0) as total_value,
+            SUM(CASE WHEN quantity <= COALESCE(reorder_at,2) THEN 1 ELSE 0 END) as low_count
+     FROM inventory WHERE category IN (${placeholders}) GROUP BY category`
+  ).bind(...cats).all();
+  const byCategory = {};
+  summaryRows.forEach(r => { byCategory[r.category] = r; });
+  const summary = cats.map(c => byCategory[c] || { category: c, items: 0, total_qty: 0, total_value: 0, low_count: 0 });
+
+  const { results: items } = await env.DB.prepare(
+    `SELECT id, sku, name, category, quantity, sell_price, reorder_at FROM inventory WHERE category IN (${placeholders}) ORDER BY category ASC, name ASC`
+  ).bind(...cats).all();
+
+  return json({ summary, items });
+}
+
+async function handleInvSearch(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const category = url.searchParams.get("category") || "";
+  const q = url.searchParams.get("q") || "";
+  if (!category && !q) return json([]);
+  let stmt;
+  if (category && q) {
+    const like = `%${q}%`;
+    stmt = env.DB.prepare(
+      `SELECT * FROM inventory WHERE category = ?1 AND (name LIKE ?2 OR sku LIKE ?2 OR supplier LIKE ?2 OR supplier_code LIKE ?2) ORDER BY name ASC`
+    ).bind(category, like);
+  } else if (category) {
+    stmt = env.DB.prepare(`SELECT * FROM inventory WHERE category = ?1 ORDER BY name ASC`).bind(category);
+  } else {
+    const like = `%${q}%`;
+    stmt = env.DB.prepare(
+      `SELECT * FROM inventory WHERE name LIKE ?1 OR sku LIKE ?1 OR supplier LIKE ?1 OR supplier_code LIKE ?1 ORDER BY name ASC`
+    ).bind(like);
+  }
+  const { results } = await stmt.all();
+  return json(results);
+}
+
+async function handleInvLowStock(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const category = url.searchParams.get("category") || "";
+  let sql = `SELECT * FROM inventory WHERE shop_position IS NOT NULL AND quantity <= COALESCE(reorder_at, 2)`;
+  const binds = [];
+  if (category) { sql += ` AND category = ?1`; binds.push(category); }
+  sql += ` ORDER BY category ASC, quantity ASC`;
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  return json(results);
+}
+
+// Logs an automatic 'Inventory Stock' expenditure entry when Inventory
+// quantity genuinely increases (new item added, or an existing item
+// restocked) — real money leaving the business, so Lisa never has to
+// re-type a cost she already entered in Inventory. linked_inventory_id is
+// what marks this row as auto-generated: manual entries (the accounting
+// page's entry form) never set it, and can't pick category
+// 'Inventory Stock' either, so the two are always cleanly distinguishable
+// in the ledger.
+//
+// Only called when qtyDelta > 0 (never on a decrease or an unchanged
+// quantity) and costPerItem > 0 (a zero-cost item has nothing real to
+// log — an amount of £0 would just be noise in the ledger).
+async function logStockExpenditure(env, { inventoryId, qtyDelta, costPerItem, name, sku }) {
+  const amount = qtyDelta * costPerItem;
+  await env.DB.prepare(
+    `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_inventory_id)
+     VALUES (?1,?2,?3,?4,?5,?6)`
+  ).bind(
+    new Date().toISOString().slice(0, 10),
+    "Inventory Stock",
+    "",
+    amount,
+    `Auto: ${qtyDelta} × ${name} (${sku}) @ £${costPerItem.toFixed(2)} each`,
+    inventoryId
+  ).run();
+}
+
+async function handleInvItems(request, env, url) {
+  if (request.method === "POST") {
+    const b = await request.json();
+    const missing = [];
+    if (!b.category) missing.push("category");
+    if (!b.name) missing.push("name");
+    if (!b.description) missing.push("description");
+    if (!b.photo_url) missing.push("photo");
+    if (!b.sell_price) missing.push("sell price");
+    if (missing.length) return json({ error: "Missing: " + missing.join(", ") + ". All of these are needed before it can go live in the shop." }, 400);
+
+    const caps = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
+    const cap = caps[b.category];
+    if (!cap) return json({ error: "Unknown category" }, 400);
+    const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(shop_position),-1) as maxPos FROM inventory WHERE category = ?1 AND shop_position IS NOT NULL`).bind(b.category).first();
+    if (countRow.n >= cap) return json({ error: b.category + " Library is full (" + cap + "/" + cap + "). Remove a piece from Shop Library before adding another." }, 400);
+
+    const sku = await nextSku(env);
+    const nextPos = countRow.maxPos + 1;
+    const quantity = Number(b.quantity) || 0;
+    const costPerItem = Number(b.cost_per_item) || 0;
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`
+    ).bind(
+      sku, b.name, b.category, quantity, costPerItem, b.sell_price || 0,
+      b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || "", nextPos
+    ).run();
+
+    // A new item's starting quantity is an increase from 0 — real stock cost.
+    if (quantity > 0 && costPerItem > 0) {
+      await logStockExpenditure(env, { inventoryId: insertRes.meta.last_row_id, qtyDelta: quantity, costPerItem, name: b.name, sku });
+    }
+
+    return json({ success: true, sku });
+  }
+  if (request.method === "PATCH") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    const b = await request.json();
+
+    // Read the current row FIRST (whenever quantity is part of this edit) so
+    // the increase is measured against what's actually in the database right
+    // now, not anything the client claims — a plain re-save with an
+    // unchanged quantity, or a decrease, must never log a stock expenditure.
+    let current = null;
+    if (b.quantity !== undefined) {
+      current = await env.DB.prepare(`SELECT quantity, cost_per_item, name, sku FROM inventory WHERE id = ?1`).bind(id).first();
+    }
+
+    const fieldMap = { name: "name", category: "category", quantity: "quantity", cost_per_item: "cost_per_item", sell_price: "sell_price", reorder_at: "reorder_at", supplier: "supplier", supplier_code: "supplier_code", photo_url: "photo_url", description: "notes" };
+    const sets = []; const vals = [];
+    Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    vals.push(id);
+    await env.DB.prepare(`UPDATE inventory SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+
+    if (current) {
+      const qtyDelta = (Number(b.quantity) || 0) - (Number(current.quantity) || 0);
+      // If cost_per_item is being changed in this same edit, that's what was
+      // just paid for the added units; otherwise fall back to the cost
+      // already on file. A pure cost correction (no quantity field at all)
+      // never reaches this block, since `current` is only read above when
+      // b.quantity is present.
+      const costPerItem = b.cost_per_item !== undefined ? (Number(b.cost_per_item) || 0) : (Number(current.cost_per_item) || 0);
+      if (qtyDelta > 0 && costPerItem > 0) {
+        await logStockExpenditure(env, {
+          inventoryId: id, qtyDelta, costPerItem,
+          name: b.name !== undefined ? b.name : current.name,
+          sku: current.sku,
+        });
+      }
+    }
+
+    return json({ success: true });
+  }
+  if (request.method === "DELETE") {
+    const id = url.searchParams.get("id");
+    if (!id) return json({ error: "id required" }, 400);
+    await env.DB.prepare(`DELETE FROM inventory WHERE id = ?`).bind(id).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
 // Fresh routes for the Accounting tool — deliberately NOT /api/expenditure,
 // which is dead code blocked by HUB_DISABLED and tied to the old disabled
 // Business Hub. These reuse the existing `expenditure` table.
