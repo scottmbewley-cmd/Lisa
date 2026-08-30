@@ -128,6 +128,7 @@
     <div id="label-from" style="font-size:0.95rem; margin-bottom:24px;"></div>
     <div style="font-size:0.85rem; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">To:</div>
     <div id="label-to" style="font-size:1.4rem; line-height:1.5;"></div>
+    <div id="label-invoice" style="font-size:0.75rem; color:#555; margin-top:16px;"></div>
   </div>
 </div>
 <script>
@@ -198,11 +199,11 @@ async function loadOrders() {
     statusEl.textContent = rows.length + ' order' + (rows.length === 1 ? '' : 's') + ' waiting to be posted.';
     wrap.innerHTML = '' +
       '<table class="staff-table">' +
-        '<thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th></tr></thead>' +
+        '<thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th></tr></thead>' +
         '<tbody>' +
           rows.map(function (o) {
             return '<tr class="orders-row" data-id="' + o.id + '">' +
-              '<td>#' + o.id + '</td>' +
+              '<td>' + esc(o.invoice_number || ('#' + o.id)) + '</td>' +
               '<td class="staff-muted">' + fmtDate(o.created_at) + '</td>' +
               '<td>' + esc(o.customer_name) + '</td>' +
               '<td class="staff-muted">' + esc(o.postcode) + '</td>' +
@@ -240,7 +241,7 @@ function renderDetail(data) {
   const o = data.order, items = data.items;
   const detailEl = document.getElementById('order-detail');
   detailEl.style.display = '';
-  document.getElementById('detail-title').textContent = 'Order #' + o.id + ' — ' + fmtDate(o.created_at);
+  document.getElementById('detail-title').textContent = (o.invoice_number || ('Order #' + o.id)) + ' — ' + fmtDate(o.created_at);
   document.getElementById('d-name').innerHTML = '<strong>' + esc(o.customer_name) + '</strong>';
   document.getElementById('d-address').innerHTML = [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
   document.getElementById('d-email').textContent = o.customer_email;
@@ -290,7 +291,7 @@ document.getElementById('print-note-btn').addEventListener('click', function () 
   if (!currentDetail) return;
   document.body.classList.remove('label-mode');
   const o = currentDetail.order, items = currentDetail.items;
-  document.getElementById('print-order-no').textContent = 'Order #' + o.id;
+  document.getElementById('print-order-no').textContent = o.invoice_number || ('Order #' + o.id);
   document.getElementById('print-date').textContent = fmtDate(o.created_at);
   document.getElementById('print-address').innerHTML = '<strong>' + esc(o.customer_name) + '</strong><br>' +
     [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
@@ -310,6 +311,7 @@ document.getElementById('print-label-btn').addEventListener('click', function ()
   const o = currentDetail.order;
   document.getElementById('label-to').innerHTML = '<strong>' + esc(o.customer_name) + '</strong><br>' +
     [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');
+  document.getElementById('label-invoice').textContent = o.invoice_number || ('Order #' + o.id);
   if (deliverySettings.show_return_address && (deliverySettings.return_name || deliverySettings.return_address)) {
     document.getElementById('label-from').innerHTML = esc(deliverySettings.return_name) +
       (deliverySettings.return_name && deliverySettings.return_address ? '<br>' : '') +

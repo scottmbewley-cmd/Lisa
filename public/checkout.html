@@ -196,10 +196,10 @@ function collectCustomer() {
   };
 }
 
-function showCheckoutSuccess(orderId, total) {
+function showCheckoutSuccess(orderId, invoiceNumber, total) {
   document.getElementById('checkout-form').style.display = 'none';
   document.getElementById('checkout-empty').style.display = 'none';
-  document.getElementById('success-order-id').textContent = '#' + orderId;
+  document.getElementById('success-order-id').textContent = invoiceNumber || ('#' + orderId);
   document.getElementById('success-order-total').textContent = '£' + Number(total).toFixed(2);
   document.getElementById('checkout-success').style.display = 'block';
   clearCart();
@@ -234,7 +234,7 @@ function initPaypalButtons() {
         if (result.item) { removeFromCart(result.item.id); renderCheckoutSummary(); }
         return;
       }
-      showCheckoutSuccess(result.orderId, result.total);
+      showCheckoutSuccess(result.orderId, result.invoiceNumber, result.total);
     },
     onError: function () {
       setCheckoutNote("Something went wrong with PayPal — please try again.", true);

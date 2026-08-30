@@ -60,7 +60,6 @@
   <div class="status-filter-row" id="status-filters">
     <button class="status-filter-btn active" data-status="">All</button>
     <button class="status-filter-btn" data-status="paid">Paid</button>
-    <button class="status-filter-btn" data-status="posted">Moved to Delivery</button>
     <button class="status-filter-btn" data-status="cancelled">Cancelled</button>
   </div>
 
@@ -128,11 +127,11 @@ async function loadOrders() {
     statusEl.textContent = rows.length + ' order' + (rows.length === 1 ? '' : 's') + '.';
     wrap.innerHTML = '' +
       '<table class="staff-table">' +
-        '<thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>' +
+        '<thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>' +
         '<tbody>' +
           rows.map(function (o) {
             return '<tr class="orders-row" data-id="' + o.id + '">' +
-              '<td>#' + o.id + '</td>' +
+              '<td>' + esc(o.invoice_number || ('#' + o.id)) + '</td>' +
               '<td class="staff-muted">' + fmtDate(o.created_at) + '</td>' +
               '<td>' + esc(o.customer_name) + '</td>' +
               '<td class="staff-muted">' + esc(o.postcode) + '</td>' +
@@ -179,7 +178,7 @@ function renderDetail(data) {
   const o = data.order, items = data.items;
   const detailEl = document.getElementById('order-detail');
   detailEl.style.display = '';
-  document.getElementById('detail-title').textContent = 'Order #' + o.id + ' — ' + fmtDate(o.created_at);
+  document.getElementById('detail-title').textContent = (o.invoice_number || ('Order #' + o.id)) + ' — ' + fmtDate(o.created_at);
   document.getElementById('detail-status-pill').innerHTML = '<span class="status-pill ' + esc(o.status) + '">' + statusLabel(o.status) + '</span>';
   document.getElementById('d-name').innerHTML = '<strong>' + esc(o.customer_name) + '</strong>';
   document.getElementById('d-address').innerHTML = [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join('<br>');

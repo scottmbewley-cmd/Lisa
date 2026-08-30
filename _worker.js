@@ -598,6 +598,12 @@ async function confirmOrder(env, input) {
   ).run();
   const orderId = orderInsert.meta.last_row_id;
 
+  // Derived from the just-inserted row's AUTOINCREMENT id, never a
+  // SELECT MAX()+1 — that id is already race-free, so riding on it keeps
+  // invoice numbers race-free under concurrent checkouts with no extra guard.
+  const invoiceNumber = "INV-" + String(orderId).padStart(4, "0");
+  await env.DB.prepare(`UPDATE orders SET invoice_number = ?1 WHERE id = ?2`).bind(invoiceNumber, orderId).run();
+
   const itemStmts = decremented.map(it =>
     env.DB.prepare(
       `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total, unit_cost, line_cost)
@@ -606,7 +612,7 @@ async function confirmOrder(env, input) {
   );
   await env.DB.batch(itemStmts);
 
-  return { success: true, orderId, subtotal, shipping, total };
+  return { success: true, orderId, invoiceNumber, subtotal, shipping, total };
 }
 
 // ===== PayPal Orders API v2 =====
@@ -784,7 +790,7 @@ async function handlePaypalCaptureOrder(request, env) {
   }
 
   await env.DB.prepare(`DELETE FROM pending_orders WHERE paypal_order_id = ?1`).bind(paypalOrderId).run();
-  return json({ success: true, orderId: result.orderId, total: result.total });
+  return json({ success: true, orderId: result.orderId, invoiceNumber: result.invoiceNumber, total: result.total });
 }
 
 async function handleOrders(request, env, url) {
@@ -817,6 +823,45 @@ async function handleOrders(request, env, url) {
   }
 
   return json({ error: "Method not allowed" }, 405);
+}
+
+// Free-text search across invoice number, customer name, email, and
+// postcode, with an optional created-date range — for staff pulling up a
+// specific invoice fast (refunds/returns, HMRC records). Returns each match
+// in the same { order, items } shape as GET /api/orders?id= so the UI can
+// reuse that rendering.
+async function handleInvoiceSearch(request, env, url) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const q = (url.searchParams.get("q") || "").trim();
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  if (!q) return json({ error: "q is required" }, 400);
+
+  let sql = `SELECT * FROM orders WHERE (
+    invoice_number LIKE ?1 ESCAPE '\\' OR customer_name LIKE ?1 ESCAPE '\\' OR
+    customer_email LIKE ?1 ESCAPE '\\' OR postcode LIKE ?1 ESCAPE '\\'
+  )`;
+  const escaped = q.replace(/[\\%_]/g, c => "\\" + c);
+  const binds = [`%${escaped}%`];
+  let n = 2;
+  if (from) { sql += ` AND date(created_at) >= ?${n}`; binds.push(from); n++; }
+  if (to) { sql += ` AND date(created_at) <= ?${n}`; binds.push(to); n++; }
+  sql += ` ORDER BY created_at DESC LIMIT 50`;
+
+  const { results: orders } = await env.DB.prepare(sql).bind(...binds).all();
+  if (!orders.length) return json({ orders: [] });
+
+  const ids = orders.map(o => o.id);
+  const placeholders = ids.map((_, i) => `?${i + 1}`).join(",");
+  const { results: items } = await env.DB.prepare(
+    `SELECT * FROM order_items WHERE order_id IN (${placeholders}) ORDER BY id ASC`
+  ).bind(...ids).all();
+  const itemsByOrder = {};
+  for (const it of items) {
+    (itemsByOrder[it.order_id] = itemsByOrder[it.order_id] || []).push(it);
+  }
+
+  return json({ orders: orders.map(o => ({ order: o, items: itemsByOrder[o.id] || [] })) });
 }
 
 export default {
@@ -859,6 +904,7 @@ export default {
       if (path === "/api/inv-lowstock") return handleInvLowStock(request, env, url);
       if (path === "/api/inv-items") return handleInvItems(request, env, url);
       if (path === "/api/orders") return handleOrders(request, env, url);
+      if (path === "/api/invoice-search") return handleInvoiceSearch(request, env, url);
       if (path === "/api/expense-entries") return handleExpenseEntries(request, env, url);
       if (path === "/api/accounting-report") return handleAccountingReport(request, env, url);
       if (path === "/api/shop-products") return handleShopProducts(request, env, url);
