@@ -200,6 +200,7 @@ function fmtDateTime(s) {
   const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
+function statusLabel(s) { return { paid: 'Paid', posted: 'Paid, Moved to Delivery', cancelled: 'Cancelled' }[s] || s; }
 // Deliberately NOT toISOString() — that converts to UTC, which shifts the
 // date backward by a day for any UK visitor during BST (e.g. local
 // midnight Aug 1 becomes July 31 in UTC). Build the string from the local
@@ -425,7 +426,7 @@ function invoiceRowHtml(o) {
     '<td>' + esc(o.customer_name) + '</td>' +
     '<td class="staff-muted">' + esc(o.postcode) + '</td>' +
     '<td>' + money(o.total) + '</td>' +
-    '<td>' + esc(o.status) + '</td>' +
+    '<td>' + statusLabel(o.status) + '</td>' +
   '</tr>';
 }
 
