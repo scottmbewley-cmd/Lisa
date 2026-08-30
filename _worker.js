@@ -223,11 +223,10 @@ async function handleInvItems(request, env, url) {
 // which is dead code blocked by HUB_DISABLED and tied to the old disabled
 // Business Hub. These reuse the existing `expenditure` table.
 //
-// "Inventory Stock" is reserved for Task 3's automatic logging
-// (linked_inventory_id set, category always 'Inventory Stock'). It's
+// "Inventory Stock" and "Postage" are both reserved for automatic logging
+// (linked_inventory_id / linked_order_id set respectively, never both) —
 // excluded here on purpose so a manual entry can never masquerade as an
-// auto-generated one — linked_inventory_id IS NULL is what proves an
-// entry came from this form.
+// auto-generated one.
 const EXPENSE_CATEGORIES = ["Packaging", "Subscriptions", "Office", "Marketing", "Fees", "Other"];
 
 async function handleExpenseEntries(request, env, url) {
@@ -254,10 +253,13 @@ async function handleExpenseEntries(request, env, url) {
   if (request.method === "DELETE") {
     const id = url.searchParams.get("id");
     if (!id) return json({ error: "id required" }, 400);
-    const row = await env.DB.prepare(`SELECT linked_inventory_id FROM expenditure WHERE id = ?1`).bind(id).first();
+    const row = await env.DB.prepare(`SELECT linked_inventory_id, linked_order_id FROM expenditure WHERE id = ?1`).bind(id).first();
     if (!row) return json({ error: "Not found" }, 404);
     if (row.linked_inventory_id !== null) {
       return json({ error: "That's an automatic stock entry — delete or correct it from Inventory instead." }, 400);
+    }
+    if (row.linked_order_id !== null) {
+      return json({ error: "That's an automatic postage entry, tied to a specific invoice — it can't be deleted here." }, 400);
     }
     await env.DB.prepare(`DELETE FROM expenditure WHERE id = ?1`).bind(id).run();
     return json({ success: true });
@@ -1024,6 +1026,32 @@ async function handleOrders(request, env, url) {
       ? `UPDATE orders SET status = ?1, ${stampCol} = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`
       : `UPDATE orders SET status = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`;
     await env.DB.prepare(sql).bind(b.status, id).run();
+
+    // The real postage cost is only known once the parcel's actually been
+    // taken to the post office — there's no way to predict it, since it
+    // varies by weight/size and whatever the current Royal Mail rate is.
+    // So it's captured right here, at the moment of posting, as the real
+    // figure for this specific invoice — not a flat guess, not a formula.
+    // Only logs on a genuine transition to 'posted' with a real amount, and
+    // only once per order (checked below), same discipline as Inventory
+    // Stock's auto-logging.
+    if (b.status === "posted" && b.postage_cost !== undefined) {
+      const amount = Number(b.postage_cost) || 0;
+      if (amount > 0) {
+        const already = await env.DB.prepare(`SELECT id FROM expenditure WHERE linked_order_id = ?1 AND category = 'Postage'`).bind(id).first();
+        if (!already) {
+          const order = await env.DB.prepare(`SELECT invoice_number FROM orders WHERE id = ?1`).bind(id).first();
+          await env.DB.prepare(
+            `INSERT INTO expenditure (exp_date, category, paid_from, amount, notes, linked_order_id)
+             VALUES (?1,?2,?3,?4,?5,?6)`
+          ).bind(
+            new Date().toISOString().slice(0, 10), "Postage", "", amount,
+            `Auto: postage for ${order ? order.invoice_number : ('order #' + id)}`, id
+          ).run();
+        }
+      }
+    }
+
     return json({ success: true });
   }
 

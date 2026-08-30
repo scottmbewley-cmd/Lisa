@@ -105,10 +105,16 @@
     <div id="d-items-wrap"></div>
 
     <div id="status-msg"></div>
-    <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="staff-btn" id="mark-posted-btn">Mark as Posted</button>
-      <button class="staff-btn outline" id="print-note-btn">Print Delivery Note</button>
-      <button class="staff-btn outline" id="print-label-btn">Print Label</button>
+    <div style="margin-top:16px;">
+      <div class="staff-field" style="max-width:200px; margin-bottom:12px;">
+        <label for="d-postage-cost">Postage cost (£)</label>
+        <input type="number" min="0" step="0.01" id="d-postage-cost" placeholder="What it actually cost" />
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="staff-btn" id="mark-posted-btn">Mark as Posted</button>
+        <button class="staff-btn outline" id="print-note-btn">Print Delivery Note</button>
+        <button class="staff-btn outline" id="print-label-btn">Print Label</button>
+      </div>
     </div>
   </div>
 </main>
@@ -248,6 +254,7 @@ function renderDetail(data) {
   const o = data.order, items = data.items;
   const detailEl = document.getElementById('order-detail');
   detailEl.style.display = '';
+  document.getElementById('d-postage-cost').value = '';
   document.getElementById('detail-title').textContent = (o.invoice_number || ('Order #' + o.id)) + ' — ' + fmtDate(o.created_at);
   const timelineParts = ['Paid ' + fmtDateTime(o.created_at)];
   if (o.posted_at) timelineParts.push('Posted ' + fmtDateTime(o.posted_at));
@@ -277,16 +284,24 @@ function renderDetail(data) {
 document.getElementById('mark-posted-btn').addEventListener('click', async function () {
   if (!currentDetail) return;
   const msgEl = document.getElementById('status-msg');
+  const postageInput = document.getElementById('d-postage-cost');
+  const postageCost = postageInput.value.trim();
+  if (!postageCost || Number(postageCost) <= 0) {
+    msgEl.style.color = 'var(--staff-danger)';
+    msgEl.textContent = 'Enter what postage actually cost before marking as posted.';
+    postageInput.focus();
+    return;
+  }
   const btn = this;
   btn.disabled = true;
   try {
     const res = await fetch('/api/orders?id=' + encodeURIComponent(currentDetail.order.id), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'posted' })
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'posted', postage_cost: Number(postageCost) })
     });
     const data = await res.json();
     if (!res.ok) { msgEl.style.color = 'var(--staff-danger)'; msgEl.textContent = data.error || 'Could not update that order.'; return; }
     msgEl.style.color = 'var(--staff-ok)';
-    msgEl.textContent = 'Marked as posted.';
+    msgEl.textContent = 'Marked as posted — postage logged in Expenses Accounting.';
     document.getElementById('order-detail').style.display = 'none';
     currentDetail = null;
     await loadOrders();

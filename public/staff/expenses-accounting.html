@@ -101,6 +101,9 @@
     <div class="cashflow-note">
       <strong>Includes Inventory Stock: <span id="stat-stock-cash">£0.00</span></strong> — logged automatically from Inventory the moment stock is added or restocked, so it's already counted above without needing to be typed in twice.
     </div>
+    <div class="cashflow-note">
+      <strong>Includes Postage: <span id="stat-postage-cash">£0.00</span></strong> — logged automatically from Delivery, the real cost entered per invoice at the moment it's posted.
+    </div>
 
     <h4 class="staff-serif" style="margin:20px 0 10px;">Expenditure by Category</h4>
     <p class="staff-muted" style="font-size:0.85rem;">Pick one, several, or all categories to narrow the breakdown and total below.</p>
@@ -123,6 +126,7 @@
           <option value="">— select —</option>
           <option>Packaging</option><option>Subscriptions</option><option>Office</option><option>Marketing</option><option>Fees</option><option>Other</option>
           <option value="Inventory Stock" disabled>Inventory Stock (added automatically)</option>
+          <option value="Postage" disabled>Postage (added automatically)</option>
         </select>
       </div>
       <div class="staff-field"><label>Amount (£)</label><input type="number" min="0" step="0.01" id="e-amount" /></div>
@@ -153,12 +157,13 @@ let activePeriod = 'month';
 let currentFrom = '', currentTo = '';
 let lastCategoryData = [];
 
-const CATEGORY_FILTER_LIST = ['Packaging', 'Subscriptions', 'Office', 'Marketing', 'Fees', 'Other', 'Inventory Stock'];
+const CATEGORY_FILTER_LIST = ['Packaging', 'Subscriptions', 'Office', 'Marketing', 'Fees', 'Other', 'Inventory Stock', 'Postage'];
 function catFilterId(cat) { return 'cf-' + cat.replace(/\s+/g, '-'); }
 const catFilterRow = document.getElementById('cat-filter-row');
+const AUTO_CATEGORIES = ['Inventory Stock', 'Postage'];
 CATEGORY_FILTER_LIST.forEach(cat => {
   const label = document.createElement('label');
-  label.innerHTML = '<input type="checkbox" id="' + catFilterId(cat) + '" checked> ' + (cat === 'Inventory Stock' ? cat + ' <span class="staff-muted" style="font-size:0.75rem;">(auto)</span>' : cat);
+  label.innerHTML = '<input type="checkbox" id="' + catFilterId(cat) + '" checked> ' + (AUTO_CATEGORIES.includes(cat) ? cat + ' <span class="staff-muted" style="font-size:0.75rem;">(auto)</span>' : cat);
   catFilterRow.appendChild(label);
 });
 
@@ -207,8 +212,8 @@ function selectedCategoryFilters() {
   return CATEGORY_FILTER_LIST.filter(cat => { const el = document.getElementById(catFilterId(cat)); return el && el.checked; });
 }
 function categoryRowHtml(c) {
-  const isStock = c.category === 'Inventory Stock';
-  return '<tr' + (isStock ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (isStock ? ' <span class="staff-muted" style="font-size:0.75rem;">(auto — from Inventory)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>';
+  const isAuto = AUTO_CATEGORIES.includes(c.category);
+  return '<tr' + (isAuto ? ' style="opacity:0.7;"' : '') + '><td>' + esc(c.category) + (isAuto ? ' <span class="staff-muted" style="font-size:0.75rem;">(auto)</span>' : '') + '</td><td>' + money(c.amount) + '</td></tr>';
 }
 function renderCategoryTable() {
   const selected = selectedCategoryFilters();
@@ -246,6 +251,9 @@ async function runReport(from, to) {
     const stockRow = (data.expense_by_category || []).find(function (c) { return c.category === 'Inventory Stock'; });
     const stockCash = stockRow ? stockRow.amount : 0;
     document.getElementById('stat-stock-cash').textContent = money(stockCash);
+    const postageRow = (data.expense_by_category || []).find(function (c) { return c.category === 'Postage'; });
+    const postageCash = postageRow ? postageRow.amount : 0;
+    document.getElementById('stat-postage-cash').textContent = money(postageCash);
     lastCategoryData = data.expense_by_category || [];
     renderCategoryTable();
 
@@ -264,9 +272,10 @@ async function loadRecentEntries() {
     const rows = await res.json();
     if (!rows.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Nothing logged yet.</p>'; return; }
     wrap.innerHTML = rows.slice(0, 20).map(r => {
-      const isAuto = r.linked_inventory_id !== null;
+      const isAuto = r.linked_inventory_id !== null || r.linked_order_id !== null;
+      const tagText = r.linked_inventory_id !== null ? 'auto — inventory stock' : r.linked_order_id !== null ? 'auto — postage' : 'manual';
       return '<div class="recent-row" data-id="' + r.id + '">' +
-        '<div><strong>' + esc(r.category) + '</strong> <span class="tag' + (isAuto ? ' auto' : '') + '">' + (isAuto ? 'auto — inventory stock' : 'manual') + '</span><br>' +
+        '<div><strong>' + esc(r.category) + '</strong> <span class="tag' + (isAuto ? ' auto' : '') + '">' + tagText + '</span><br>' +
         '<span class="staff-muted">' + esc(r.exp_date) + (r.notes ? ' — ' + esc(r.notes) : '') + '</span></div>' +
         '<div style="text-align:right;"><span class="amt">' + money(r.amount) + '</span><br>' +
         (isAuto ? '' : '<button class="staff-del-btn del-entry-btn" data-id="' + r.id + '">Delete</button>') +
