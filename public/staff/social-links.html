@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Social Links — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<style>
+  .ce-section { margin-bottom: 40px; }
+  #status-msg { font-size: 0.85rem; margin: 16px 0; min-height: 20px; }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Social Links · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Site tools</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Social Links</h1>
+  <p class="staff-muted">Add the links once you have them. An icon only shows in the site footer once its URL is filled in.</p>
+
+  <div id="status-msg"></div>
+
+  <div class="staff-card ce-section" style="border-top: 2px solid var(--staff-taupe);">
+    <h3 class="staff-serif" style="margin-top:0;">Platforms</h3>
+    <div class="staff-field">
+      <label>Instagram URL</label>
+      <input type="url" id="f-instagram" placeholder="https://instagram.com/..." />
+    </div>
+    <div class="staff-field">
+      <label>Facebook URL</label>
+      <input type="url" id="f-facebook" placeholder="https://facebook.com/..." />
+    </div>
+    <div class="staff-field">
+      <label>Whatnot URL</label>
+      <input type="url" id="f-whatnot" placeholder="https://whatnot.com/..." />
+    </div>
+  </div>
+
+  <button class="staff-btn" id="save-btn">Save Changes</button>
+</main>
+
+<script>
+async function loadAll() {
+  const res = await fetch('/api/social-links');
+  const sl = await res.json();
+  document.getElementById('f-instagram').value = sl.instagram_url || '';
+  document.getElementById('f-facebook').value = sl.facebook_url || '';
+  document.getElementById('f-whatnot').value = sl.whatnot_url || '';
+}
+
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('status-msg');
+  const saveBtn = document.getElementById('save-btn');
+  msgEl.style.color = '';
+  saveBtn.disabled = true;
+  try {
+    const payload = {
+      instagram_url: document.getElementById('f-instagram').value.trim(),
+      facebook_url: document.getElementById('f-facebook').value.trim(),
+      whatnot_url: document.getElementById('f-whatnot').value.trim()
+    };
+    const res = await fetchWithTimeout('/api/social-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }, 15000);
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.textContent = data.error || 'Something went wrong saving that.';
+      msgEl.style.color = 'var(--staff-danger)';
+      return;
+    }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved — footer updated on the live site.';
+    await loadAll();
+  } catch (err) {
+    msgEl.textContent = 'Something went wrong: ' + err.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+loadAll();
+</script>
+</body>
+</html>

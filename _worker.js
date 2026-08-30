@@ -185,8 +185,44 @@ async function renderShopPage(request, env) {
     : `<p class="muted" style="grid-column:1/-1;">New pieces coming soon — check back shortly.</p>`;
 
   const template = await (await env.ASSETS.fetch(new Request(new URL("/shop.html", request.url)))).text();
-  const html = template.replace("<!--SHOP_PRODUCTS-->", cardsHtml);
+  const html = template.replace("<!--SHOP_PRODUCTS-->", cardsHtml).replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function getSocialLinks(env) {
+  const { results } = await env.DB.prepare(`SELECT * FROM social_links WHERE id = 1`).all();
+  return results[0] || {};
+}
+
+function socialLinksHtml(sl) {
+  const icons = [];
+  if (sl.instagram_url) {
+    icons.push(`<a href="${escapeHtml(sl.instagram_url)}" aria-label="Instagram" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 2 .2 2.4.4.6.2 1 .5 1.5 1 .4.4.7.8 1 1.5.2.5.3 1.3.4 2.4.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 2-.4 2.4-.2.6-.5 1-1 1.5-.4.4-.8.7-1.5 1-.5.2-1.3.3-2.4.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-2-.2-2.4-.4-.6-.2-1-.5-1.5-1-.4-.4-.7-.8-1-1.5-.2-.5-.3-1.3-.4-2.4C2 15.6 2 15.2 2 12s0-3.6.1-4.9c.1-1.2.2-2 .4-2.4.2-.6.5-1 1-1.5.4-.4.8-.7 1.5-1 .5-.2 1.3-.3 2.4-.4C8.4 2.2 8.8 2.2 12 2.2zm0 3a6.8 6.8 0 100 13.6 6.8 6.8 0 000-13.6zm0 2a4.8 4.8 0 110 9.6 4.8 4.8 0 010-9.6zm7-2.1a1.6 1.6 0 11-3.2 0 1.6 1.6 0 013.2 0z"/></svg></a>`);
+  }
+  if (sl.facebook_url) {
+    icons.push(`<a href="${escapeHtml(sl.facebook_url)}" aria-label="Facebook" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.2-1.5 1.5-1.5H17V3.6C16.7 3.6 15.7 3.5 14.5 3.5c-2.4 0-4 1.5-4 4.2v2.2H7.8V13h2.7v8h3z"/></svg></a>`);
+  }
+  if (sl.whatnot_url) {
+    icons.push(`<a href="${escapeHtml(sl.whatnot_url)}" aria-label="Whatnot" target="_blank" rel="noopener"><span class="w-mark">W</span></a>`);
+  }
+  return icons.join("\n          ");
+}
+
+async function handleSocialLinks(request, env) {
+  if (request.method === "GET") {
+    return json(await getSocialLinks(env));
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    const fields = ["instagram_url", "facebook_url", "whatnot_url"];
+    const sets = []; const vals = [];
+    fields.forEach(f => { if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(b[f] === "" ? null : b[f]); } });
+    if (!sets.length) return json({ error: "no fields to update" }, 400);
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    await env.DB.prepare(`UPDATE social_links SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
 }
 
 async function getHomeContent(env) {
@@ -229,7 +265,8 @@ async function renderHomePage(request, env) {
     .replace("<!--HERO_IMAGE-->", escapeHtml(heroUrl))
     .replace("<!--HOME_PRODUCTS-->", cardsHtml)
     .replace("<!--WHY_HEADING-->", escapeHtml(hc.why_heading || "Everyday jewellery, built to last"))
-    .replace("<!--WHY_BODY-->", escapeHtml(hc.why_body || ""));
+    .replace("<!--WHY_BODY-->", escapeHtml(hc.why_body || ""))
+    .replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
@@ -271,7 +308,8 @@ async function renderStoryPage(request, env) {
     .replace("<!--STORY_IMAGE-->", imageHtml)
     .replace("<!--STORY_PARA1-->", escapeHtml(sc.paragraph_1 || ""))
     .replace("<!--STORY_PARA2-->", escapeHtml(sc.paragraph_2 || ""))
-    .replace("<!--STORY_NOTE-->", noteHtml);
+    .replace("<!--STORY_NOTE-->", noteHtml)
+    .replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
@@ -303,7 +341,8 @@ async function renderContactPage(request, env) {
   const html = template
     .replace("<!--CONTACT_EYEBROW-->", escapeHtml(cc.eyebrow || "Say hello"))
     .replace("<!--CONTACT_HEADING-->", escapeHtml(cc.heading || "Get in Touch"))
-    .replace("<!--CONTACT_SUBTITLE-->", escapeHtml(cc.subtitle || ""));
+    .replace("<!--CONTACT_SUBTITLE-->", escapeHtml(cc.subtitle || ""))
+    .replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
@@ -343,7 +382,8 @@ async function renderCarePage(request, env) {
     .replace("<!--CARE_S2_BODY-->", escapeHtml(cc.section2_body || ""))
     .replace("<!--CARE_S3_TITLE-->", escapeHtml(cc.section3_title || ""))
     .replace("<!--CARE_S3_BODY-->", escapeHtml(cc.section3_body || ""))
-    .replace("<!--CARE_NOTE-->", noteHtml);
+    .replace("<!--CARE_NOTE-->", noteHtml)
+    .replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
@@ -368,7 +408,7 @@ async function handleCareContent(request, env) {
 // PayPal SDK at all, or show a graceful "payments aren't live yet" state.
 async function renderCheckoutPage(request, env) {
   const template = await (await env.ASSETS.fetch(new Request(new URL("/checkout.html", request.url)))).text();
-  const html = template.replace("<!--PAYPAL_CLIENT_ID-->", escapeHtml(env.PAYPAL_CLIENT_ID || ""));
+  const html = template.replace("<!--PAYPAL_CLIENT_ID-->", escapeHtml(env.PAYPAL_CLIENT_ID || "")).replace("<!--SOCIAL_LINKS-->", socialLinksHtml(await getSocialLinks(env)));
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
@@ -803,6 +843,7 @@ export default {
       if (path === "/api/story-content") return handleStoryContent(request, env);
       if (path === "/api/contact-content") return handleContactContent(request, env);
       if (path === "/api/care-content") return handleCareContent(request, env);
+      if (path === "/api/social-links") return handleSocialLinks(request, env);
       return json({ error: "Not found" }, 404);
     }
 
