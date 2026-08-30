@@ -59,7 +59,7 @@
     z-index: 100; overflow-y: auto;
   }
   #overlay.open { display: block; }
-  .overlay-inner { max-width: 640px; margin: 0 auto; padding: 20px 20px 60px; }
+  .overlay-inner { max-width: 640px; margin: 0 auto; padding: 20px 20px 100px; }
   .overlay-close {
     display: flex; align-items: center; gap: 8px; background: none; border: none;
     color: var(--staff-white-dim); font-size: 0.95rem; cursor: pointer; padding: 10px 0; margin-bottom: 10px;
@@ -81,6 +81,26 @@
   .presented-block { margin-top: 18px; padding: 14px; border-radius: 8px; background: rgba(143,181,138,0.1); text-align: center; }
   .presented-block .tag { color: var(--staff-ok); font-weight: 600; }
   .undo-link { background: none; border: none; color: var(--staff-white-dim); text-decoration: underline; cursor: pointer; font-size: 0.85rem; margin-top: 8px; }
+
+  .footnote-strip {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 101;
+    background: var(--staff-panel); border-top: 1px solid var(--staff-line);
+    padding: 10px 14px; gap: 10px; overflow-x: auto;
+  }
+  .footnote-strip.open { display: flex; }
+  .footnote-tile {
+    position: relative; width: 52px; height: 52px; border-radius: 6px; flex-shrink: 0;
+    cursor: pointer; border: 2px solid transparent; overflow: hidden;
+    background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; color: var(--staff-white-dim);
+  }
+  .footnote-tile.current { border-color: var(--staff-gold); }
+  .footnote-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .footnote-tile .tick {
+    position: absolute; top: 2px; right: 2px; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--staff-ok); color: #1A1714; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
 </style>
 </head>
 <body class="staff-body">
@@ -113,6 +133,7 @@
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
     <h3 class="staff-serif" style="margin-top:0;">Items to present</h3>
+    <button class="staff-btn" id="start-presenting-btn" type="button" style="margin-bottom:16px;" disabled>▶ Start Presenting</button>
     <div id="items-wrap"><p class="staff-muted">Loading…</p></div>
 
     <button class="staff-btn outline" id="add-item-toggle" type="button" style="margin-top:14px; margin-right:10px;">+ Add another item</button>
@@ -169,12 +190,14 @@
     </div>
   </div>
 </div>
+<div class="footnote-strip" id="footnote-strip"></div>
 
 <script>
 const params = new URLSearchParams(window.location.search);
 const planId = params.get('id');
 let planData = null;
 let currentOverlayItemId = null;
+let presentingMode = false;
 
 const PROMPT_PRESETS = [
   { group: 'Confidence & pacing', items: [
@@ -233,6 +256,7 @@ function scarcityInfo(qty) {
 function renderItems() {
   const wrap = document.getElementById('items-wrap');
   const items = planData.items || [];
+  document.getElementById('start-presenting-btn').disabled = items.length === 0;
   if (!items.length) {
     wrap.innerHTML = '<p class="staff-muted">No items yet — add some below.</p>';
     return;
@@ -409,6 +433,36 @@ document.getElementById('s-query').addEventListener('keydown', e => { if (e.key 
 document.getElementById('s-category').addEventListener('change', runItemSearch);
 
 // ===== Presentation overlay =====
+document.getElementById('start-presenting-btn').addEventListener('click', () => {
+  const items = planData.items || [];
+  if (!items.length) return;
+  presentingMode = true;
+  const target = items.find(it => !it.complete && it.name !== null) || items.find(it => it.name !== null) || items[0];
+  openOverlay(target.id);
+});
+
+function renderFootnoteStrip() {
+  const wrap = document.getElementById('footnote-strip');
+  const items = planData.items || [];
+  wrap.innerHTML = items.map(it => {
+    const isCurrent = String(it.id) === String(currentOverlayItemId);
+    let inner;
+    if (it.item_type === 'prompt') inner = '💬';
+    else if (it.name === null) inner = '—';
+    else if (it.photo_url) inner = `<img src="${esc(it.photo_url)}">`;
+    else inner = '💍';
+    const tick = it.complete ? '<span class="tick">✓</span>' : '';
+    return `<div class="footnote-tile${isCurrent ? ' current' : ''}" data-id="${it.id}" title="${esc(it.item_type === 'prompt' ? it.prompt_label : (it.name || 'Removed item'))}">${inner}${tick}</div>`;
+  }).join('');
+  wrap.querySelectorAll('.footnote-tile').forEach(t => {
+    t.addEventListener('click', () => {
+      const it = items.find(x => String(x.id) === t.dataset.id);
+      if (it && it.item_type !== 'prompt' && it.name === null) return;
+      openOverlay(t.dataset.id);
+    });
+  });
+}
+
 function openOverlay(itemRowId) {
   const it = (planData.items || []).find(x => String(x.id) === String(itemRowId));
   if (!it) return;
@@ -453,6 +507,10 @@ function openOverlay(itemRowId) {
 
   updateOverlayCompleteState(!!it.complete);
 
+  document.getElementById('overlay-close').textContent = presentingMode ? '✕ Exit Presenting' : '← Back to list';
+  document.getElementById('footnote-strip').classList.toggle('open', presentingMode);
+  if (presentingMode) renderFootnoteStrip();
+
   document.getElementById('overlay').classList.add('open');
   window.scrollTo(0, 0);
 }
@@ -464,6 +522,8 @@ function updateOverlayCompleteState(complete) {
 
 function closeOverlay() {
   document.getElementById('overlay').classList.remove('open');
+  document.getElementById('footnote-strip').classList.remove('open');
+  presentingMode = false;
   currentOverlayItemId = null;
 }
 document.getElementById('overlay-close').addEventListener('click', closeOverlay);
@@ -489,7 +549,12 @@ document.getElementById('ov-complete-btn').addEventListener('click', async () =>
   const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
   if (it) it.complete = 1;
   renderItems();
-  closeOverlay();
+  if (presentingMode) {
+    updateOverlayCompleteState(true);
+    renderFootnoteStrip();
+  } else {
+    closeOverlay();
+  }
 });
 
 document.getElementById('ov-undo-btn').addEventListener('click', async () => {
@@ -501,6 +566,7 @@ document.getElementById('ov-undo-btn').addEventListener('click', async () => {
   if (it) it.complete = 0;
   updateOverlayCompleteState(false);
   renderItems();
+  if (presentingMode) renderFootnoteStrip();
 });
 
 if (planId) loadPlan();
