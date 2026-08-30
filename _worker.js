@@ -232,7 +232,8 @@ async function handleStreamPlans(request, env, url) {
       const plan = await env.DB.prepare(`SELECT * FROM stream_plans WHERE id = ?1`).bind(id).first();
       if (!plan) return json({ error: "Plan not found" }, 404);
       const { results: items } = await env.DB.prepare(
-        `SELECT spi.id, spi.position, spi.complete, spi.hook_note, spi.inventory_id,
+        `SELECT spi.id, spi.position, spi.complete, spi.hook_note, spi.item_type, spi.inventory_id,
+                spi.prompt_label, spi.prompt_text,
                 inv.name, inv.category, inv.notes as description, inv.sell_price, inv.quantity, inv.photo_url, inv.sku
          FROM stream_plan_items spi
          LEFT JOIN inventory inv ON inv.id = spi.inventory_id
@@ -281,20 +282,31 @@ async function handleStreamPlans(request, env, url) {
 async function handleStreamPlanItems(request, env, url) {
   if (request.method === "POST") {
     const b = await request.json();
-    if (!b.plan_id || !b.inventory_id) return json({ error: "plan_id and inventory_id required" }, 400);
+    if (!b.plan_id) return json({ error: "plan_id required" }, 400);
+    const itemType = b.item_type === "prompt" ? "prompt" : "item";
+    if (itemType === "item" && !b.inventory_id) return json({ error: "inventory_id required for an item card" }, 400);
+    if (itemType === "prompt" && !String(b.prompt_label || "").trim()) return json({ error: "prompt_label required for a prompt card" }, 400);
+
     const posRow = await env.DB.prepare(`SELECT COALESCE(MAX(position),-1) as maxPos FROM stream_plan_items WHERE plan_id = ?1`).bind(b.plan_id).first();
     const insertRes = await env.DB.prepare(
-      `INSERT INTO stream_plan_items (plan_id, inventory_id, position, complete, hook_note) VALUES (?1,?2,?3,0,'')`
-    ).bind(b.plan_id, b.inventory_id, posRow.maxPos + 1).run();
+      `INSERT INTO stream_plan_items (plan_id, item_type, inventory_id, prompt_label, prompt_text, position, complete, hook_note)
+       VALUES (?1,?2,?3,?4,?5,?6,0,'')`
+    ).bind(
+      b.plan_id, itemType,
+      itemType === "item" ? b.inventory_id : null,
+      itemType === "prompt" ? b.prompt_label.trim() : null,
+      itemType === "prompt" ? (b.prompt_text || "") : null,
+      posRow.maxPos + 1
+    ).run();
     return json({ success: true, id: insertRes.meta.last_row_id });
   }
   if (request.method === "PATCH") {
     const id = url.searchParams.get("id");
     if (!id) return json({ error: "id required" }, 400);
     const b = await request.json();
-    const fieldMap = { complete: "complete", hook_note: "hook_note" };
+    const fieldMap = { complete: "complete", hook_note: "hook_note", prompt_label: "prompt_label", prompt_text: "prompt_text" };
     const sets = []; const vals = [];
-    Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(f === "complete" ? (b[f] ? 1 : 0) : b[f]); } }); 
+    Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(f === "complete" ? (b[f] ? 1 : 0) : b[f]); } });
     if (!sets.length) return json({ error: "no fields to update" }, 400);
     vals.push(id);
     await env.DB.prepare(`UPDATE stream_plan_items SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
