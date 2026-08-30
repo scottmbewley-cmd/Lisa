@@ -134,7 +134,7 @@ async function loadOrders() {
     statusEl.textContent = rows.length + ' order' + (rows.length === 1 ? '' : 's') + '.';
     wrap.innerHTML = '' +
       '<table class="staff-table">' +
-        '<thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>' +
+        '<thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>' +
         '<tbody>' +
           rows.map(function (o) {
             return '<tr class="orders-row" data-id="' + o.id + '">' +

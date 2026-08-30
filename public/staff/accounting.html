@@ -477,7 +477,7 @@ async function runInvoiceSearch() {
     statusEl.textContent = lastInvoiceMatches.length + ' match' + (lastInvoiceMatches.length === 1 ? '' : 'es') + '.';
     resultsWrap.innerHTML = '' +
       '<table class="staff-table">' +
-        '<thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead>' +
+        '<thead><tr><th>Invoice</th><th>Paid</th><th>Customer</th><th>Postcode</th><th>Total</th><th>Status</th></tr></thead>' +
         '<tbody>' + lastInvoiceMatches.map(function (m) { return invoiceRowHtml(m.order); }).join('') + '</tbody>' +
       '</table>';
     resultsWrap.querySelectorAll('.orders-row').forEach(function (row) {
