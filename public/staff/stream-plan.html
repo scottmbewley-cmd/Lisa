@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Stream Plan â€” Evelle</title>
+<title>Stream Plan — Evelle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
@@ -14,7 +14,21 @@
 
   /* ===== Two-column builder + stage, modelled on the Whatnot Stream Builder layout ===== */
   .ws-container { display: grid; grid-template-columns: 360px 1fr; gap: 22px; align-items: start; }
-  @media (max-width: 940px) { .ws-container { grid-template-columns: 1fr; } }
+  @media (max-width: 940px) {
+    .ws-container { grid-template-columns: 1fr; }
+    .ws-container > div:last-child { order: 1; }
+    .ws-sidebar { order: 2; }
+    body.presenting .ws-sidebar { display: none; }
+    body.presenting .ws-slide { padding: 18px 18px 14px; min-height: 0; }
+    body.presenting .ws-photo, body.presenting .ws-photo-empty { max-width: 150px; margin-bottom: 10px; }
+    body.presenting .ws-title { font-size: clamp(1.3rem, 6vw, 1.7rem); margin-bottom: 6px; }
+    body.presenting .ws-script { font-size: 0.95rem; }
+    body.presenting .ws-details-box { margin-top: 10px; padding: 10px 12px; }
+    body.presenting .ws-slide-footer { margin-top: 10px; padding-top: 8px; }
+    body.presenting .ws-controls { padding: 12px; margin-top: 10px; }
+    body.presenting .staff-header { padding: 8px 16px; }
+    body.presenting .staff-header .staff-tagline { display: none; }
+  }
 
   .ws-sidebar h3 { font-size: 1rem; margin: 0 0 10px; }
   .ws-sidebar .section-gap { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--staff-line); }
@@ -124,7 +138,7 @@
     <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
     <div>
       <h1 class="staff-serif">Evelle</h1>
-      <div class="staff-tagline">Stream Plan Â· The beauty of being you</div>
+      <div class="staff-tagline">Stream Plan · The beauty of being you</div>
     </div>
   </div>
   <nav class="staff-nav">
@@ -147,7 +161,7 @@
 
   <div class="ws-container">
     <div class="staff-card ws-sidebar" style="border-top: 2px solid var(--staff-taupe);">
-      <button class="staff-btn" id="start-presenting-btn" type="button" style="width:100%; margin-bottom:18px;" disabled>â–¶ Start Presenting</button>
+      <button class="staff-btn" id="start-presenting-btn" type="button" style="width:100%; margin-bottom:18px;" disabled>▶ Start Presenting</button>
 
       <h3 class="staff-serif">Search inventory</h3>
       <div class="auto-connector-row">
@@ -176,19 +190,19 @@
 
       <div class="section-gap">
         <h3 class="staff-serif">Current queue (<span id="queue-count">0</span>)</h3>
-        <div id="items-wrap"><p class="staff-muted">Loadingâ€¦</p></div>
+        <div id="items-wrap"><p class="staff-muted">Loading…</p></div>
       </div>
     </div>
 
     <div>
-      <div id="ws-empty" class="staff-card ws-stage-empty" style="display:none;">No items yet â€” search Inventory on the left to build your stream.</div>
+      <div id="ws-empty" class="staff-card ws-stage-empty" style="display:none;">No items yet — search Inventory on the left to build your stream.</div>
       <div id="ws-body">
         <div class="ws-slide" id="preview-slide">
           <div class="confidence-bubble" id="confidence-bubble"><span class="bubble-tag">Just a thought</span><span id="confidence-bubble-text"></span></div>
           <span class="ws-slide-tag" id="pv-tag"></span>
           <div class="ws-slide-body">
             <img class="ws-photo" id="pv-photo" src="" alt="" style="display:none;" />
-            <div class="ws-photo-empty" id="pv-photo-empty" style="display:none;">ðŸ“·</div>
+            <div class="ws-photo-empty" id="pv-photo-empty" style="display:none;">📷</div>
             <h2 class="staff-serif ws-title" id="pv-name"></h2>
             <p class="ws-script" id="pv-script" style="display:none;"></p>
             <div class="ws-details-box" id="pv-details" style="display:none;">
@@ -200,14 +214,14 @@
             </div>
           </div>
           <div class="ws-slide-footer">
-            <span>Ã‰velle Live Stream</span>
+            <span>Évelle Live Stream</span>
             <span id="cue-counter"></span>
           </div>
         </div>
 
         <div class="staff-card ws-controls">
           <div id="pv-words-filled" style="display:none;">
-            <button class="jump-btn" id="pv-edit-words-btn" type="button">âœŽ Edit these words</button>
+            <button class="jump-btn" id="pv-edit-words-btn" type="button">✎ Edit these words</button>
           </div>
           <div id="pv-words-editor">
             <label class="ws-controls-label">Your words for this slide</label>
@@ -216,18 +230,18 @@
           </div>
 
           <div id="pv-not-done">
-            <button class="staff-btn ws-complete-btn" id="pv-complete-btn" type="button">âœ“ Presentation Complete</button>
+            <button class="staff-btn ws-complete-btn" id="pv-complete-btn" type="button">✓ Presentation Complete</button>
           </div>
           <div id="pv-done" class="presented-block" style="display:none;">
-            <div class="tag">âœ“ Presented</div>
-            <button class="undo-link" id="pv-undo-btn" type="button">Undo â€” mark not presented</button>
+            <div class="tag">✓ Presented</div>
+            <button class="undo-link" id="pv-undo-btn" type="button">Undo — mark not presented</button>
           </div>
 
           <div class="cue-controls">
             <button class="staff-btn outline" id="cue-prev-btn" type="button">&larr; Previous cue</button>
             <button class="staff-btn" id="cue-next-btn" type="button">Next cue &rarr;</button>
           </div>
-          <p class="kbd-hint">Use â† / â†’ or spacebar to move through the stream</p>
+          <p class="kbd-hint">Use ← / → or spacebar to move through the stream</p>
         </div>
       </div>
     </div>
@@ -243,26 +257,26 @@ let presentingMode = false;
 const soldMessageCache = {};
 
 const CONFIDENCE_BUBBLES = [
-  'Take a breath. Describe what you see â€” the colour, the shine, how it catches the light.',
-  'Slow down. Deep breath. Smile â€” you know this piece.',
+  'Take a breath. Describe what you see — the colour, the shine, how it catches the light.',
+  'Slow down. Deep breath. Smile — you know this piece.',
   "Mention the weather, how your day's going, anything on your mind.",
   "Give a hint about what's coming up before you show it.",
-  "Read out a few messages â€” say people's names.",
-  "Thank whoever just bought â€” read their name out.",
+  "Read out a few messages — say people's names.",
+  "Thank whoever just bought — read their name out.",
   'Ask: has everyone had a good day? Any plans this weekend?',
   "Remind new viewers to hit follow so they don't miss the next drop.",
-  "Don't forget this, sweetheart â€” you're doing great.",
+  "Don't forget this, sweetheart — you're doing great.",
 ];
 
 const PITCH_TEMPLATES = [
-  (n, d, s, p) => `Up next, we have this gorgeous ${n}. ${d}${s}. We're starting this one off at just ${p}! Get your bids in the chat right now â€” who wants it?`,
-  (n, d, s, p) => `Look at this beauty â€” the ${n}. ${d}${s}. Starting bids at ${p} â€” don't sleep on this one!`,
-  (n, d, s, p) => `Okay, this next piece is stunning: the ${n}. ${d}${s}. Kicking off at ${p} â€” get your bids in now!`,
-  (n, d, s, p) => `Right, moving on to the ${n}. ${d}${s}. We're opening the bidding at ${p} â€” who's in?`,
-  (n, d, s, p) => `Here's a real favourite â€” the ${n}. ${d}${s}. Starting at just ${p}, first come first served!`,
-  (n, d, s, p) => `Next up, say hello to the ${n}. ${d}${s}. Bidding starts at ${p} â€” let's see those bids fly in!`,
-  (n, d, s, p) => `This one's a real head-turner â€” the ${n}. ${d}${s}. Opening bids at ${p}, so get in quick!`,
-  (n, d, s, p) => `Now this is a nice one â€” the ${n}. ${d}${s}. We're starting at ${p} â€” who's grabbing it?`,
+  (n, d, s, p) => `Up next, we have this gorgeous ${n}. ${d}${s}. We're starting this one off at just ${p}! Get your bids in the chat right now — who wants it?`,
+  (n, d, s, p) => `Look at this beauty — the ${n}. ${d}${s}. Starting bids at ${p} — don't sleep on this one!`,
+  (n, d, s, p) => `Okay, this next piece is stunning: the ${n}. ${d}${s}. Kicking off at ${p} — get your bids in now!`,
+  (n, d, s, p) => `Right, moving on to the ${n}. ${d}${s}. We're opening the bidding at ${p} — who's in?`,
+  (n, d, s, p) => `Here's a real favourite — the ${n}. ${d}${s}. Starting at just ${p}, first come first served!`,
+  (n, d, s, p) => `Next up, say hello to the ${n}. ${d}${s}. Bidding starts at ${p} — let's see those bids fly in!`,
+  (n, d, s, p) => `This one's a real head-turner — the ${n}. ${d}${s}. Opening bids at ${p}, so get in quick!`,
+  (n, d, s, p) => `Now this is a nice one — the ${n}. ${d}${s}. We're starting at ${p} — who's grabbing it?`,
 ];
 function buildAutoPitch(name, desc, scarcityText, price) {
   const d = desc ? desc + '. ' : '';
@@ -272,14 +286,14 @@ function buildAutoPitch(name, desc, scarcityText, price) {
 }
 
 const THANK_YOU_TEMPLATES = [
-  (n) => `Thank you so much for grabbing the ${n}! Hope you love wearing it â€” we'll get it packaged up and sent out to you soon.`,
-  (n) => `We have a buyer! Thank you so much for supporting us â€” your ${n} will be on its way to you very soon.`,
-  (n) => `Sold! Thank you so much â€” we're so glad it's found a home. Your ${n} will be packaged up with care and posted out shortly.`,
-  (n) => `That's the ${n} sold â€” thank you! We really appreciate the support, and it'll be on its way to you soon.`,
-  (n) => `Amazing â€” thank you for buying the ${n}! We can't wait for it to arrive with you, packaging it up shortly.`,
-  (n) => `Sold to a wonderful buyer â€” thank you so much! Your ${n} is getting wrapped up and sent out very soon.`,
-  (n) => `Thank you, thank you! The ${n} has found its new home â€” we'll have it out to you in no time.`,
-  (n) => `We appreciate you so much â€” the ${n} is sold! Getting it boxed up and posted out shortly.`,
+  (n) => `Thank you so much for grabbing the ${n}! Hope you love wearing it — we'll get it packaged up and sent out to you soon.`,
+  (n) => `We have a buyer! Thank you so much for supporting us — your ${n} will be on its way to you very soon.`,
+  (n) => `Sold! Thank you so much — we're so glad it's found a home. Your ${n} will be packaged up with care and posted out shortly.`,
+  (n) => `That's the ${n} sold — thank you! We really appreciate the support, and it'll be on its way to you soon.`,
+  (n) => `Amazing — thank you for buying the ${n}! We can't wait for it to arrive with you, packaging it up shortly.`,
+  (n) => `Sold to a wonderful buyer — thank you so much! Your ${n} is getting wrapped up and sent out very soon.`,
+  (n) => `Thank you, thank you! The ${n} has found its new home — we'll have it out to you in no time.`,
+  (n) => `We appreciate you so much — the ${n} is sold! Getting it boxed up and posted out shortly.`,
 ];
 
 if (!planId) {
@@ -298,7 +312,7 @@ function toLocalInputValue(isoString) {
 
 function scarcityInfo(qty) {
   const n = Number(qty) || 0;
-  if (n <= 0) return { text: 'Sold out â€” check stock before presenting', cls: 'low' };
+  if (n <= 0) return { text: 'Sold out — check stock before presenting', cls: 'low' };
   if (n === 1) return { text: 'Only 1 left', cls: 'low' };
   if (n <= 3) return { text: 'Only ' + n + ' left', cls: 'low' };
   return { text: n + ' in stock', cls: 'ok' };
@@ -322,7 +336,7 @@ async function loadPlan() {
   if ((data.items || []).length === 0) {
     await postStreamPlanItem({
       plan_id: Number(planId), item_type: 'prompt', prompt_label: 'Welcome',
-      prompt_text: "Good morning, everyone! Grab your coffee and get settled â€” let's have some fun today."
+      prompt_text: "Good morning, everyone! Grab your coffee and get settled — let's have some fun today."
     });
     return loadPlan();
   }
@@ -351,11 +365,11 @@ function renderQueue() {
   }
   wrap.innerHTML = items.map((it, idx) => {
     const currentCls = idx === currentIndex ? ' current' : '';
-    const tick = it.complete ? '<span class="queue-tick">âœ“</span>' : '';
+    const tick = it.complete ? '<span class="queue-tick">✓</span>' : '';
     let title, type, removedCls = '';
     if (it.item_type === 'prompt') { title = it.prompt_label; type = 'Prompt card'; }
     else if (it.name === null) { title = 'Item removed from Inventory'; type = ''; removedCls = ' removed'; }
-    else { title = it.name; type = 'Â£' + Number(it.sell_price || 0).toFixed(2) + ' Â· ' + it.category; }
+    else { title = it.name; type = '£' + Number(it.sell_price || 0).toFixed(2) + ' · ' + it.category; }
     return `
       <div class="queue-row${currentCls}${removedCls}" data-idx="${idx}">
         <span class="qnum">${idx + 1}.</span>
@@ -432,9 +446,9 @@ function renderSlide() {
     const txt = (it.prompt_text || '').trim();
     scriptEl.textContent = txt;
     scriptEl.style.display = txt ? '' : 'none';
-    document.getElementById('pv-complete-btn').textContent = 'âœ“ Done with this prompt';
-    document.querySelector('#pv-done .tag').textContent = 'âœ“ Used';
-    document.getElementById('pv-undo-btn').textContent = 'Undo â€” mark not presented';
+    document.getElementById('pv-complete-btn').textContent = '✓ Done with this prompt';
+    document.querySelector('#pv-done .tag').textContent = '✓ Used';
+    document.getElementById('pv-undo-btn').textContent = 'Undo — mark not presented';
   } else if (it.name === null) {
     photoEl.style.display = 'none';
     photoEmptyEl.style.display = 'none';
@@ -450,16 +464,16 @@ function renderSlide() {
     document.getElementById('pv-tag').textContent = it.category || '';
     document.getElementById('pv-name').textContent = it.name || '';
     document.getElementById('pv-desc').textContent = it.description || '';
-    document.getElementById('pv-price').textContent = 'Â£' + Number(it.sell_price || 0).toFixed(2);
+    document.getElementById('pv-price').textContent = '£' + Number(it.sell_price || 0).toFixed(2);
     const sc = scarcityInfo(it.quantity);
     document.getElementById('pv-scarcity').textContent = sc.text;
     document.getElementById('pv-scarcity').className = 'ws-stock ' + sc.cls;
     const script = it.complete ? thankYouText(it) : (it.hook_note || '').trim();
     scriptEl.textContent = script;
     scriptEl.style.display = script ? '' : 'none';
-    document.getElementById('pv-complete-btn').textContent = 'âœ“ Mark as Sold';
-    document.querySelector('#pv-done .tag').textContent = 'âœ“ Sold';
-    document.getElementById('pv-undo-btn').textContent = 'Undo â€” mark as not sold yet';
+    document.getElementById('pv-complete-btn').textContent = '✓ Mark as Sold';
+    document.querySelector('#pv-done .tag').textContent = '✓ Sold';
+    document.getElementById('pv-undo-btn').textContent = 'Undo — mark as not sold yet';
   }
 
   const currentWords = it.item_type === 'prompt' ? (it.prompt_text || '') : (it.hook_note || '');
@@ -490,7 +504,7 @@ async function savePlanMeta(fields) {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields)
     });
     if (!res.ok) { statusEl.textContent = 'Could not save.'; statusEl.style.color = 'var(--staff-danger)'; return; }
-    statusEl.textContent = 'Saved âœ“';
+    statusEl.textContent = 'Saved ✓';
     statusEl.style.color = 'var(--staff-ok)';
     if (fields.title !== undefined) document.getElementById('page-heading').textContent = fields.title || 'Untitled stream';
     setTimeout(() => { statusEl.textContent = ''; }, 1500);
@@ -540,7 +554,7 @@ async function runItemSearch() {
     wrap.innerHTML = rows.map(r => `
       <div class="search-result-row">
         ${r.photo_url ? `<img class="thumb" src="${esc(r.photo_url)}">` : `<div class="thumb-empty"></div>`}
-        <div class="name-col"><strong>${esc(r.name)}</strong><br><span class="staff-muted">Â£${Number(r.sell_price || 0).toFixed(2)} Â· ${esc(r.quantity)} left</span></div>
+        <div class="name-col"><strong>${esc(r.name)}</strong><br><span class="staff-muted">£${Number(r.sell_price || 0).toFixed(2)} · ${esc(r.quantity)} left</span></div>
         <button class="staff-btn outline" style="padding:5px 12px; font-size:0.75rem;" type="button" data-add="${r.id}">Add</button>
       </div>
     `).join('');
@@ -554,20 +568,20 @@ async function runItemSearch() {
         const itemResp = await postStreamPlanItem({ plan_id: Number(planId), inventory_id: Number(btn.dataset.add) });
         if (autoConnectors && itemResp && itemResp.id) {
           const sc = scarcityInfo(row.quantity).text;
-          const price = 'Â£' + Number(row.sell_price || 0).toFixed(2);
+          const price = '£' + Number(row.sell_price || 0).toFixed(2);
           const desc = (row.notes || '').trim();
           const script = buildAutoPitch(row.name, desc, sc, price);
           const patchRes = await fetch('/api/stream-plan-items?id=' + encodeURIComponent(itemResp.id), {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hook_note: script })
           });
-          if (!patchRes.ok) statusEl.textContent = 'Item added, but the auto pitch failed to save â€” open it and write one manually.';
+          if (!patchRes.ok) statusEl.textContent = 'Item added, but the auto pitch failed to save — open it and write one manually.';
         }
         await loadPlan();
-        btn.textContent = 'âœ“';
+        btn.textContent = '✓';
       });
     });
   } catch (e) {
-    statusEl.textContent = 'Could not search â€” check your connection.';
+    statusEl.textContent = 'Could not search — check your connection.';
   }
 }
 document.getElementById('search-btn').addEventListener('click', runItemSearch);
@@ -595,15 +609,16 @@ document.getElementById('start-presenting-btn').addEventListener('click', () => 
   const items = planData.items || [];
   if (!items.length) return;
   const btn = document.getElementById('start-presenting-btn');
+  document.body.classList.toggle('presenting', !presentingMode);
   presentingMode = !presentingMode;
   if (presentingMode) {
     selectIndex(0);
     scheduleNextBubble();
-    btn.textContent = 'â–  Stop Presenting';
+    btn.textContent = '■ Stop Presenting';
   } else {
     clearTimeout(bubbleTimeoutId);
     document.getElementById('confidence-bubble').classList.remove('show');
-    btn.textContent = 'â–¶ Start Presenting';
+    btn.textContent = '▶ Start Presenting';
   }
 });
 
@@ -645,10 +660,10 @@ document.getElementById('pv-hook').addEventListener('blur', async function () {
   const res = await fetch('/api/stream-plan-items?id=' + encodeURIComponent(it.id), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: this.value })
   });
-  if (!res.ok) { msgEl.textContent = 'Could not save â€” try again.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  if (!res.ok) { msgEl.textContent = 'Could not save — try again.'; msgEl.style.color = 'var(--staff-danger)'; return; }
   it[field] = this.value;
   msgEl.style.color = 'var(--staff-ok)';
-  msgEl.textContent = 'Saved âœ“';
+  msgEl.textContent = 'Saved ✓';
   const hasWords = !!this.value.trim();
   document.getElementById('pv-words-filled').style.display = hasWords ? '' : 'none';
   setTimeout(() => { msgEl.textContent = ''; }, 1200);

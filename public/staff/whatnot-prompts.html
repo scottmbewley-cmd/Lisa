@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Stream Plans â€” Evelle</title>
+<title>Stream Plans — Evelle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
@@ -26,7 +26,7 @@
     <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
     <div>
       <h1 class="staff-serif">Evelle</h1>
-      <div class="staff-tagline">Stream Plans Â· The beauty of being you</div>
+      <div class="staff-tagline">Stream Plans · The beauty of being you</div>
     </div>
   </div>
   <nav class="staff-nav">
@@ -37,12 +37,12 @@
 <main class="staff-main">
   <span class="staff-eyebrow">Live Whatnot Prompts</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Stream Plans</h1>
-  <p class="staff-muted">Build a running order of items before you go live, then work through it on-screen while you present â€” pick whichever's next, in any order.</p>
+  <p class="staff-muted">Build a running order of items before you go live, then work through it on-screen while you present — pick whichever's next, in any order.</p>
 
   <button class="staff-btn" id="new-plan-btn" style="margin:18px 0;">+ New Stream Plan</button>
   <div id="status-msg" style="font-size:0.85rem; min-height:20px; margin-bottom:10px;"></div>
 
-  <div id="plans-list"><p class="staff-muted">Loadingâ€¦</p></div>
+  <div id="plans-list"><p class="staff-muted">Loading…</p></div>
 </main>
 
 <script>
@@ -61,14 +61,14 @@ async function loadPlans() {
     const res = await fetch('/api/stream-plans');
     const plans = await res.json();
     if (!plans.length) {
-      wrap.innerHTML = '<p class="staff-muted">No stream plans yet â€” create one to get started.</p>';
+      wrap.innerHTML = '<p class="staff-muted">No stream plans yet — create one to get started.</p>';
       return;
     }
     wrap.innerHTML = plans.map(p => `
       <div class="plan-row" data-id="${p.id}">
         <div>
           <h3>${esc(p.title) || 'Untitled stream'}</h3>
-          <div class="plan-meta">${esc(formatPlanDate(p.planned_at))}${p.duration_minutes ? ' Â· ' + esc(p.duration_minutes) + ' min planned' : ''} Â· ${p.item_count} item${p.item_count === 1 ? '' : 's'}${p.item_count ? ' Â· ' + p.complete_count + '/' + p.item_count + ' presented' : ''}</div>
+          <div class="plan-meta">${esc(formatPlanDate(p.planned_at))}${p.duration_minutes ? ' · ' + esc(p.duration_minutes) + ' min planned' : ''} · ${p.item_count} item${p.item_count === 1 ? '' : 's'}${p.item_count ? ' · ' + p.complete_count + '/' + p.item_count + ' presented' : ''}</div>
         </div>
         <div class="plan-actions">
           <button class="staff-btn outline plan-open-btn" style="padding:8px 16px;" type="button" data-open="${p.id}">Open</button>
@@ -97,7 +97,7 @@ async function loadPlans() {
       });
     });
   } catch (e) {
-    wrap.innerHTML = '<p class="staff-muted">Could not load â€” check your connection and reload.</p>';
+    wrap.innerHTML = '<p class="staff-muted">Could not load — check your connection and reload.</p>';
   }
 }
 
