@@ -3,101 +3,117 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Stream Plan — Evelle</title>
+<title>Stream Plan â€” Evelle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/staff-theme.css" />
 <style>
+  .staff-main { max-width: 1360px; }
   .meta-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
   .meta-grid .full { grid-column: 1 / -1; }
-  .item-row {
-    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-    border: 1px solid var(--staff-line); border-radius: 8px; background: var(--staff-card);
-    margin-bottom: 8px; cursor: pointer;
-  }
-  .item-row:hover { border-color: var(--staff-gold); }
-  .item-row.removed { opacity: 0.6; cursor: default; }
-  .item-row .thumb { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
-  .item-row .thumb-empty { width: 46px; height: 46px; border-radius: 6px; background: rgba(255,255,255,0.04); flex-shrink: 0; }
-  .item-row .name-col { flex: 1; min-width: 0; }
-  .item-row .name-col h4 { margin: 0; font-size: 0.98rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .item-row .name-col .price { font-size: 0.82rem; color: var(--staff-white-dim); }
-  .status-pill { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
-  .status-pill.done { background: rgba(143,181,138,0.18); color: var(--staff-ok); }
-  .status-pill.pending { background: rgba(255,255,255,0.06); color: var(--staff-white-dim); }
-  .remove-x { background: none; border: none; color: var(--staff-white-dim); font-size: 1.2rem; cursor: pointer; padding: 2px 6px; line-height: 1; }
-  .remove-x:hover { color: var(--staff-danger); }
 
-  .search-panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--staff-line); display: none; }
-  .search-panel.open { display: block; }
-  .search-row { display: flex; gap: 10px; align-items: end; margin-bottom: 12px; flex-wrap: wrap; }
-  .search-row .staff-field { margin-bottom: 0; flex: 1; min-width: 150px; }
+  /* ===== Two-column builder + stage, modelled on the Whatnot Stream Builder layout ===== */
+  .ws-container { display: grid; grid-template-columns: 360px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 940px) { .ws-container { grid-template-columns: 1fr; } }
+
+  .ws-sidebar h3 { font-size: 1rem; margin: 0 0 10px; }
+  .ws-sidebar .section-gap { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--staff-line); }
+
+  .search-row { display: flex; gap: 8px; align-items: end; margin-bottom: 10px; flex-wrap: wrap; }
+  .search-row .staff-field { margin-bottom: 0; flex: 1; min-width: 120px; }
+  .auto-connector-row { display: flex; align-items: flex-start; gap: 8px; font-size: 0.78rem; color: var(--staff-white-dim); margin-bottom: 10px; }
+  .auto-connector-row input { width: auto; margin-top: 2px; }
+
   .search-result-row {
-    display: flex; align-items: center; gap: 12px; padding: 8px 10px;
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
     border-bottom: 1px solid var(--staff-line);
   }
-  .search-result-row .thumb, .search-result-row .thumb-empty { width: 38px; height: 38px; border-radius: 5px; object-fit: cover; flex-shrink: 0; }
+  .search-result-row .thumb, .search-result-row .thumb-empty { width: 36px; height: 36px; border-radius: 5px; object-fit: cover; flex-shrink: 0; }
   .search-result-row .thumb-empty { background: rgba(255,255,255,0.04); }
-  .search-result-row .name-col { flex: 1; min-width: 0; font-size: 0.9rem; }
+  .search-result-row .name-col { flex: 1; min-width: 0; font-size: 0.88rem; }
 
-  .prompt-tile { width: 46px; height: 46px; border-radius: 6px; background: rgba(212,175,106,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+  .prompt-mini-form { display: none; margin-top: 10px; }
+  .prompt-mini-form.open { display: block; }
+
+  .queue-row {
+    display: flex; align-items: center; gap: 8px; padding: 9px 10px;
+    border: 1px solid var(--staff-line); border-radius: 7px; background: rgba(255,255,255,0.02);
+    margin-bottom: 7px; cursor: pointer;
+  }
+  .queue-row:hover { border-color: var(--staff-gold); }
+  .queue-row.current { border-color: var(--staff-gold); background: rgba(212,175,106,0.07); }
+  .queue-row.removed { opacity: 0.55; cursor: default; }
+  .queue-row .qnum { font-size: 0.78rem; color: var(--staff-white-dim); width: 18px; flex-shrink: 0; }
+  .queue-row .name-col { flex: 1; min-width: 0; }
+  .queue-row .name-col .qtitle { font-size: 0.88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .queue-row .name-col .qtype { font-size: 0.72rem; color: var(--staff-white-dim); }
+  .queue-tick { width: 16px; height: 16px; border-radius: 50%; background: var(--staff-ok); color: #16241A; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .jump-btn {
+    background: rgba(255,255,255,0.06); border: 1px solid var(--staff-line); color: var(--staff-white);
+    font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 5px 9px; border-radius: 4px; cursor: pointer; flex-shrink: 0;
+  }
+  .jump-btn:hover { border-color: var(--staff-gold); color: var(--staff-gold); }
+  .remove-x { background: none; border: none; color: var(--staff-white-dim); font-size: 1.05rem; cursor: pointer; padding: 2px 4px; line-height: 1; flex-shrink: 0; }
+  .remove-x:hover { color: var(--staff-danger); }
+
+  /* ===== Stage: the slide itself + controls beneath ===== */
+  .ws-stage-empty { color: var(--staff-white-dim); text-align: center; padding: 60px 0; }
+
+  .ws-slide {
+    position: relative; background: var(--staff-card); border: 1px solid var(--staff-line);
+    border-radius: 14px; padding: 34px 34px 20px; min-height: 460px;
+    display: flex; flex-direction: column;
+  }
+  .ws-slide-tag {
+    align-self: flex-end; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+    border: 1px solid var(--staff-gold); color: var(--staff-gold); padding: 4px 12px; border-radius: 20px; margin-bottom: 18px;
+  }
+  .ws-slide-body { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ws-photo { width: 100%; max-width: 300px; aspect-ratio: 1/1; object-fit: cover; border-radius: 10px; border: 1px solid var(--staff-line); background: var(--staff-panel); margin: 0 auto 20px; display: block; }
+  .ws-photo-empty { width: 100%; max-width: 300px; aspect-ratio: 1/1; border-radius: 10px; border: 1px dashed var(--staff-line); display: flex; align-items: center; justify-content: center; color: var(--staff-white-dim); font-size: 2.2rem; margin: 0 auto 20px; }
+  .ws-title { font-size: clamp(1.8rem, 3.6vw, 2.4rem); font-weight: 600; margin: 0 0 12px; line-height: 1.15; }
+  .ws-script { font-style: italic; font-size: 1.15rem; line-height: 1.6; color: var(--staff-white); max-width: 520px; margin: 0; }
+  .ws-script::before { content: open-quote; }
+  .ws-script::after { content: close-quote; }
+  .ws-details-box {
+    margin-top: 22px; width: 100%; max-width: 480px; background: rgba(255,255,255,0.03); border: 1px solid var(--staff-line);
+    border-radius: 8px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 14px; text-align: left;
+  }
+  .ws-details-specs { font-size: 0.85rem; color: var(--staff-white-dim); line-height: 1.4; }
+  .ws-details-side { text-align: right; flex-shrink: 0; }
+  .ws-price { font-size: 1.3rem; font-weight: 600; color: var(--staff-gold); }
+  .ws-stock { font-size: 0.78rem; margin-top: 2px; }
+  .ws-stock.low { color: var(--staff-danger); font-weight: 600; }
+  .ws-stock.ok { color: var(--staff-white-dim); }
+  .ws-slide-footer {
+    display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--staff-white-dim);
+    border-top: 1px solid var(--staff-line); padding-top: 12px; margin-top: 20px;
+  }
+
+  .ws-controls { margin-top: 16px; padding: 18px; }
+  .ws-controls-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); margin-bottom: 6px; display: block; }
+  .ws-controls textarea { width: 100%; min-height: 60px; padding: 11px; border: 1px solid var(--staff-line); background: rgba(255,255,255,0.04); color: var(--staff-white); font-family: inherit; font-size: 0.95rem; border-radius: 6px; margin-bottom: 6px; }
+  #hook-save-msg { font-size: 0.78rem; color: var(--staff-ok); min-height: 16px; }
+  .ws-complete-btn { width: 100%; padding: 14px; font-size: 0.92rem; margin-top: 8px; }
+  .presented-block { margin-top: 8px; padding: 12px; border-radius: 8px; background: rgba(143,181,138,0.1); text-align: center; }
+  .presented-block .tag { color: var(--staff-ok); font-weight: 600; }
+  .undo-link { background: none; border: none; color: var(--staff-white-dim); text-decoration: underline; cursor: pointer; font-size: 0.83rem; margin-top: 6px; }
+
+  .cue-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--staff-line); }
+  .cue-counter { font-size: 0.82rem; color: var(--staff-white-dim); }
+  .kbd-hint { font-size: 0.75rem; color: var(--staff-white-dim); text-align: center; margin-top: 8px; }
 
   .confidence-bubble {
-    position: fixed; top: 90px; right: 16px; max-width: 230px; z-index: 102;
-    background: var(--staff-gold); color: #1A1714; padding: 14px 16px; border-radius: 14px 14px 2px 14px;
-    font-size: 0.9rem; font-weight: 600; line-height: 1.4;
-    opacity: 0; transform: translateX(16px) scale(0.96); transition: opacity 0.4s ease, transform 0.4s ease;
-    pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    position: absolute; top: 18px; left: 50%; max-width: 340px; z-index: 20;
+    background: var(--staff-ok); color: #16241A; padding: 16px 22px; border-radius: 16px;
+    font-size: 1rem; font-weight: 600; line-height: 1.45; text-align: center;
+    opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.96); transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none; box-shadow: 0 10px 28px rgba(0,0,0,0.4);
   }
-  .confidence-bubble.show { opacity: 1; transform: translateX(0) scale(1); }
-
-  /* Full-screen presentation overlay */
-  #overlay {
-    display: none; position: fixed; inset: 0; background: var(--staff-bg);
-    z-index: 100; overflow-y: auto;
-  }
-  #overlay.open { display: block; }
-  .overlay-inner { max-width: 640px; margin: 0 auto; padding: 20px 20px 100px; }
-  .overlay-close {
-    display: flex; align-items: center; gap: 8px; background: none; border: none;
-    color: var(--staff-white-dim); font-size: 0.95rem; cursor: pointer; padding: 10px 0; margin-bottom: 10px;
-  }
-  .overlay-close:hover { color: var(--staff-white); }
-  .overlay-photo { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 12px; border: 1px solid var(--staff-line); background: var(--staff-panel); }
-  .overlay-photo-empty { width: 100%; aspect-ratio: 1/1; border-radius: 12px; border: 1px dashed var(--staff-line); display: flex; align-items: center; justify-content: center; color: var(--staff-white-dim); font-size: 2.5rem; }
-  .overlay-category { margin-top: 18px; }
-  .overlay-name { font-size: clamp(1.6rem, 5vw, 2.2rem); margin: 2px 0 10px; }
-  .overlay-price { font-size: 1.6rem; color: var(--staff-gold); font-weight: 600; margin: 0 0 6px; }
-  .overlay-scarcity { font-size: 0.95rem; margin: 0 0 18px; }
-  .overlay-scarcity.low { color: var(--staff-danger); font-weight: 600; }
-  .overlay-scarcity.ok { color: var(--staff-white-dim); }
-  .overlay-desc { font-size: 1.05rem; line-height: 1.5; margin: 0 0 22px; }
-  .overlay-hook-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--staff-white-dim); margin-bottom: 6px; display: block; }
-  .overlay-hook { width: 100%; min-height: 80px; padding: 12px; border: 1px solid var(--staff-line); background: rgba(255,255,255,0.04); color: var(--staff-white); font-family: inherit; font-size: 1rem; border-radius: 6px; margin-bottom: 8px; }
-  #hook-save-msg { font-size: 0.8rem; color: var(--staff-ok); min-height: 18px; }
-  .overlay-complete-btn { width: 100%; padding: 18px; font-size: 1rem; margin-top: 18px; }
-  .presented-block { margin-top: 18px; padding: 14px; border-radius: 8px; background: rgba(143,181,138,0.1); text-align: center; }
-  .presented-block .tag { color: var(--staff-ok); font-weight: 600; }
-  .undo-link { background: none; border: none; color: var(--staff-white-dim); text-decoration: underline; cursor: pointer; font-size: 0.85rem; margin-top: 8px; }
-
-  .footnote-strip {
-    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 101;
-    background: var(--staff-panel); border-top: 1px solid var(--staff-line);
-    padding: 10px 14px; gap: 10px; overflow-x: auto;
-  }
-  .footnote-strip.open { display: flex; }
-  .footnote-tile {
-    position: relative; width: 52px; height: 52px; border-radius: 6px; flex-shrink: 0;
-    cursor: pointer; border: 2px solid transparent; overflow: hidden;
-    background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem; color: var(--staff-white-dim);
-  }
-  .footnote-tile.current { border-color: var(--staff-gold); }
-  .footnote-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .footnote-tile .tick {
-    position: absolute; top: 2px; right: 2px; width: 15px; height: 15px; border-radius: 50%;
-    background: var(--staff-ok); color: #1A1714; font-size: 9px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
+  .confidence-bubble.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  .confidence-bubble .bubble-tag {
+    display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em;
+    opacity: 0.7; margin-bottom: 4px; font-weight: 700;
   }
 </style>
 </head>
@@ -108,7 +124,7 @@
     <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
     <div>
       <h1 class="staff-serif">Evelle</h1>
-      <div class="staff-tagline">Stream Plan · The beauty of being you</div>
+      <div class="staff-tagline">Stream Plan Â· The beauty of being you</div>
     </div>
   </div>
   <nav class="staff-nav">
@@ -120,7 +136,7 @@
   <span class="staff-eyebrow">Live Whatnot Prompts</span>
   <h1 class="staff-serif" id="page-heading" style="font-size:clamp(1.8rem,4vw,2.4rem); margin:0 0 16px;">Stream Plan</h1>
 
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 24px;">
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 20px;">
     <div class="meta-grid">
       <div class="staff-field"><label>Title</label><input type="text" id="f-title" placeholder="e.g. Friday Ring Drop" /></div>
       <div class="staff-field"><label>Duration (minutes)</label><input type="number" min="0" id="f-duration" placeholder="e.g. 60" /></div>
@@ -129,82 +145,141 @@
     <div id="meta-status" style="font-size:0.85rem; min-height:18px;"></div>
   </div>
 
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
-    <h3 class="staff-serif" style="margin-top:0;">Items to present</h3>
-    <button class="staff-btn" id="start-presenting-btn" type="button" style="margin-bottom:16px;" disabled>▶ Start Presenting</button>
-    <div id="items-wrap"><p class="staff-muted">Loading…</p></div>
+  <div class="ws-container">
+    <div class="staff-card ws-sidebar" style="border-top: 2px solid var(--staff-taupe);">
+      <button class="staff-btn" id="start-presenting-btn" type="button" style="width:100%; margin-bottom:18px;" disabled>â–¶ Start Presenting</button>
 
-    <button class="staff-btn outline" id="add-item-toggle" type="button" style="margin-top:14px; margin-right:10px;">+ Add another item</button>
-    <button class="staff-btn outline" id="add-prompt-toggle" type="button" style="margin-top:14px;">+ Add a prompt card</button>
-
-    <div class="search-panel" id="prompt-panel">
-      <div class="staff-field"><label>Prompt label</label><input type="text" id="custom-p-label" placeholder="e.g. Introduction, Moving to bracelets" /></div>
-      <div class="staff-field"><label>What you want to read</label><textarea id="custom-p-text" rows="3" placeholder="Write exactly what you want to say here..."></textarea></div>
-      <button class="staff-btn" id="custom-p-add" type="button">Add prompt card</button>
-    </div>
-
-    <div class="search-panel" id="search-panel">
+      <h3 class="staff-serif">Search inventory</h3>
+      <div class="auto-connector-row">
+        <input type="checkbox" id="auto-connectors" checked />
+        <label for="auto-connectors">Auto-write a sales pitch onto this item's slide</label>
+      </div>
       <div class="search-row">
         <div class="staff-field"><label>Category</label>
           <select id="s-category">
-            <option value="">All categories</option>
+            <option value="">All</option>
             <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
           </select>
         </div>
-        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
-        <button class="staff-btn" id="search-btn" type="button">Search</button>
+        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU..." /></div>
+        <button class="staff-btn" id="search-btn" type="button">Go</button>
       </div>
-      <div id="search-status" class="staff-muted" style="font-size:0.85rem; margin-bottom:8px;">Pick a category or type a search to see items.</div>
+      <div id="search-status" class="staff-muted" style="font-size:0.82rem; margin-bottom:6px;">Pick a category or type a search.</div>
       <div id="search-results"></div>
+
+      <button class="staff-btn outline" id="add-prompt-toggle" type="button" style="margin-top:12px; width:100%;">+ Add a custom prompt card</button>
+      <div class="prompt-mini-form" id="prompt-panel">
+        <div class="staff-field"><label>Label</label><input type="text" id="custom-p-label" placeholder="e.g. Moving to bracelets" /></div>
+        <div class="staff-field"><label>What you want to read</label><textarea id="custom-p-text" rows="3" placeholder="Write exactly what you want to say..."></textarea></div>
+        <button class="staff-btn" id="custom-p-add" type="button">Add</button>
+      </div>
+
+      <div class="section-gap">
+        <h3 class="staff-serif">Current queue (<span id="queue-count">0</span>)</h3>
+        <div id="items-wrap"><p class="staff-muted">Loadingâ€¦</p></div>
+      </div>
+    </div>
+
+    <div>
+      <div id="ws-empty" class="staff-card ws-stage-empty" style="display:none;">No items yet â€” search Inventory on the left to build your stream.</div>
+      <div id="ws-body">
+        <div class="ws-slide" id="preview-slide">
+          <div class="confidence-bubble" id="confidence-bubble"><span class="bubble-tag">Just a thought</span><span id="confidence-bubble-text"></span></div>
+          <span class="ws-slide-tag" id="pv-tag"></span>
+          <div class="ws-slide-body">
+            <img class="ws-photo" id="pv-photo" src="" alt="" style="display:none;" />
+            <div class="ws-photo-empty" id="pv-photo-empty" style="display:none;">ðŸ“·</div>
+            <h2 class="staff-serif ws-title" id="pv-name"></h2>
+            <p class="ws-script" id="pv-script" style="display:none;"></p>
+            <div class="ws-details-box" id="pv-details" style="display:none;">
+              <div class="ws-details-specs" id="pv-desc"></div>
+              <div class="ws-details-side">
+                <div class="ws-price" id="pv-price"></div>
+                <div class="ws-stock" id="pv-scarcity"></div>
+              </div>
+            </div>
+          </div>
+          <div class="ws-slide-footer">
+            <span>Ã‰velle Live Stream</span>
+            <span id="cue-counter"></span>
+          </div>
+        </div>
+
+        <div class="staff-card ws-controls">
+          <div id="pv-words-filled" style="display:none;">
+            <button class="jump-btn" id="pv-edit-words-btn" type="button">âœŽ Edit these words</button>
+          </div>
+          <div id="pv-words-editor">
+            <label class="ws-controls-label">Your words for this slide</label>
+            <textarea id="pv-hook" placeholder="What you'll actually say on screen..."></textarea>
+            <div id="hook-save-msg"></div>
+          </div>
+
+          <div id="pv-not-done">
+            <button class="staff-btn ws-complete-btn" id="pv-complete-btn" type="button">âœ“ Presentation Complete</button>
+          </div>
+          <div id="pv-done" class="presented-block" style="display:none;">
+            <div class="tag">âœ“ Presented</div>
+            <button class="undo-link" id="pv-undo-btn" type="button">Undo â€” mark not presented</button>
+          </div>
+
+          <div class="cue-controls">
+            <button class="staff-btn outline" id="cue-prev-btn" type="button">&larr; Previous cue</button>
+            <button class="staff-btn" id="cue-next-btn" type="button">Next cue &rarr;</button>
+          </div>
+          <p class="kbd-hint">Use â† / â†’ or spacebar to move through the stream</p>
+        </div>
+      </div>
     </div>
   </div>
 </main>
-
-<!-- Full-screen presentation overlay -->
-<div id="overlay">
-  <div class="overlay-inner">
-    <button class="overlay-close" id="overlay-close" type="button">&larr; Back to list</button>
-    <img class="overlay-photo" id="ov-photo" src="" alt="" style="display:none;" />
-    <div class="overlay-photo-empty" id="ov-photo-empty" style="display:none;">📷</div>
-    <span class="staff-eyebrow overlay-category" id="ov-category"></span>
-    <h2 class="staff-serif overlay-name" id="ov-name"></h2>
-    <p class="overlay-price" id="ov-price"></p>
-    <p class="overlay-scarcity" id="ov-scarcity"></p>
-    <p class="overlay-desc" id="ov-desc"></p>
-
-    <label class="overlay-hook-label">Your notes / hook line</label>
-    <textarea class="overlay-hook" id="ov-hook" placeholder="Anything you want to remember to say about this piece..."></textarea>
-    <div id="hook-save-msg"></div>
-
-    <div id="ov-not-done">
-      <button class="staff-btn overlay-complete-btn" id="ov-complete-btn" type="button">✓ Presentation Complete</button>
-    </div>
-    <div id="ov-done" class="presented-block" style="display:none;">
-      <div class="tag">✓ Presented</div>
-      <button class="undo-link" id="ov-undo-btn" type="button">Undo — mark not presented</button>
-    </div>
-  </div>
-</div>
-<div class="footnote-strip" id="footnote-strip"></div>
-<div class="confidence-bubble" id="confidence-bubble"><span id="confidence-bubble-text"></span></div>
 
 <script>
 const params = new URLSearchParams(window.location.search);
 const planId = params.get('id');
 let planData = null;
-let currentOverlayItemId = null;
+let currentIndex = 0;
 let presentingMode = false;
+const soldMessageCache = {};
 
 const CONFIDENCE_BUBBLES = [
-  'Take a breath. Describe what you see — the colour, the shine, how it catches the light.',
-  'Slow down. Deep breath. Smile — you know this piece.',
+  'Take a breath. Describe what you see â€” the colour, the shine, how it catches the light.',
+  'Slow down. Deep breath. Smile â€” you know this piece.',
   "Mention the weather, how your day's going, anything on your mind.",
   "Give a hint about what's coming up before you show it.",
-  "Read out a few messages — say people's names.",
-  "Thank whoever just bought — read their name out.",
+  "Read out a few messages â€” say people's names.",
+  "Thank whoever just bought â€” read their name out.",
   'Ask: has everyone had a good day? Any plans this weekend?',
   "Remind new viewers to hit follow so they don't miss the next drop.",
-  "Don't forget this, sweetheart — you're doing great.",
+  "Don't forget this, sweetheart â€” you're doing great.",
+];
+
+const PITCH_TEMPLATES = [
+  (n, d, s, p) => `Up next, we have this gorgeous ${n}. ${d}${s}. We're starting this one off at just ${p}! Get your bids in the chat right now â€” who wants it?`,
+  (n, d, s, p) => `Look at this beauty â€” the ${n}. ${d}${s}. Starting bids at ${p} â€” don't sleep on this one!`,
+  (n, d, s, p) => `Okay, this next piece is stunning: the ${n}. ${d}${s}. Kicking off at ${p} â€” get your bids in now!`,
+  (n, d, s, p) => `Right, moving on to the ${n}. ${d}${s}. We're opening the bidding at ${p} â€” who's in?`,
+  (n, d, s, p) => `Here's a real favourite â€” the ${n}. ${d}${s}. Starting at just ${p}, first come first served!`,
+  (n, d, s, p) => `Next up, say hello to the ${n}. ${d}${s}. Bidding starts at ${p} â€” let's see those bids fly in!`,
+  (n, d, s, p) => `This one's a real head-turner â€” the ${n}. ${d}${s}. Opening bids at ${p}, so get in quick!`,
+  (n, d, s, p) => `Now this is a nice one â€” the ${n}. ${d}${s}. We're starting at ${p} â€” who's grabbing it?`,
+];
+function buildAutoPitch(name, desc, scarcityText, price) {
+  const d = desc ? desc + '. ' : '';
+  const s = scarcityText;
+  const tpl = PITCH_TEMPLATES[Math.floor(Math.random() * PITCH_TEMPLATES.length)];
+  return tpl(name, d, s, price);
+}
+
+const THANK_YOU_TEMPLATES = [
+  (n) => `Thank you so much for grabbing the ${n}! Hope you love wearing it â€” we'll get it packaged up and sent out to you soon.`,
+  (n) => `We have a buyer! Thank you so much for supporting us â€” your ${n} will be on its way to you very soon.`,
+  (n) => `Sold! Thank you so much â€” we're so glad it's found a home. Your ${n} will be packaged up with care and posted out shortly.`,
+  (n) => `That's the ${n} sold â€” thank you! We really appreciate the support, and it'll be on its way to you soon.`,
+  (n) => `Amazing â€” thank you for buying the ${n}! We can't wait for it to arrive with you, packaging it up shortly.`,
+  (n) => `Sold to a wonderful buyer â€” thank you so much! Your ${n} is getting wrapped up and sent out very soon.`,
+  (n) => `Thank you, thank you! The ${n} has found its new home â€” we'll have it out to you in no time.`,
+  (n) => `We appreciate you so much â€” the ${n} is sold! Getting it boxed up and posted out shortly.`,
 ];
 
 if (!planId) {
@@ -221,6 +296,22 @@ function toLocalInputValue(isoString) {
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
+function scarcityInfo(qty) {
+  const n = Number(qty) || 0;
+  if (n <= 0) return { text: 'Sold out â€” check stock before presenting', cls: 'low' };
+  if (n === 1) return { text: 'Only 1 left', cls: 'low' };
+  if (n <= 3) return { text: 'Only ' + n + ' left', cls: 'low' };
+  return { text: n + ' in stock', cls: 'ok' };
+}
+
+async function postStreamPlanItem(body) {
+  const res = await fetch('/api/stream-plan-items', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
 async function loadPlan() {
   const res = await fetch('/api/stream-plans?id=' + encodeURIComponent(planId));
   const data = await res.json();
@@ -228,80 +319,165 @@ async function loadPlan() {
     document.getElementById('items-wrap').innerHTML = '<p class="staff-muted">Could not load this plan.</p>';
     return;
   }
+  if ((data.items || []).length === 0) {
+    await postStreamPlanItem({
+      plan_id: Number(planId), item_type: 'prompt', prompt_label: 'Welcome',
+      prompt_text: "Good morning, everyone! Grab your coffee and get settled â€” let's have some fun today."
+    });
+    return loadPlan();
+  }
   planData = data;
   document.getElementById('page-heading').textContent = data.plan.title || 'Untitled stream';
   document.getElementById('f-title').value = data.plan.title || '';
   document.getElementById('f-duration').value = data.plan.duration_minutes || '';
   document.getElementById('f-planned-at').value = toLocalInputValue(data.plan.planned_at);
-  renderItems();
+
+  const items = planData.items || [];
+  document.getElementById('queue-count').textContent = items.length;
+  document.getElementById('start-presenting-btn').disabled = items.length === 0;
+  if (items.length === 0) currentIndex = 0;
+  else if (currentIndex >= items.length) currentIndex = items.length - 1;
+
+  renderQueue();
+  renderSlide();
 }
 
-function scarcityInfo(qty) {
-  const n = Number(qty) || 0;
-  if (n <= 0) return { text: 'Sold out — check stock before presenting', cls: 'low' };
-  if (n === 1) return { text: 'Only 1 left', cls: 'low' };
-  if (n <= 3) return { text: 'Only ' + n + ' left', cls: 'low' };
-  return { text: n + ' in stock', cls: 'ok' };
-}
-
-function renderItems() {
+function renderQueue() {
   const wrap = document.getElementById('items-wrap');
   const items = planData.items || [];
-  document.getElementById('start-presenting-btn').disabled = items.length === 0;
   if (!items.length) {
-    wrap.innerHTML = '<p class="staff-muted">No items yet — add some below.</p>';
+    wrap.innerHTML = '<p class="staff-muted">No items yet.</p>';
     return;
   }
-  wrap.innerHTML = items.map(it => {
-    if (it.item_type === 'prompt') {
-      return `
-        <div class="item-row" data-id="${it.id}">
-          <div class="prompt-tile">💬</div>
-          <div class="name-col">
-            <h4>${esc(it.prompt_label)}</h4>
-            <div class="price">Prompt card</div>
-          </div>
-          <span class="status-pill ${it.complete ? 'done' : 'pending'}">${it.complete ? 'Used' : 'Not yet'}</span>
-          <button class="remove-x" data-remove="${it.id}" type="button" title="Remove from plan">&times;</button>
-        </div>`;
-    }
-    if (it.name === null) {
-      return `
-        <div class="item-row removed" data-id="${it.id}">
-          <div class="thumb-empty"></div>
-          <div class="name-col"><h4 class="staff-muted">Item removed from Inventory</h4></div>
-          <button class="remove-x" data-remove="${it.id}" type="button" title="Remove from plan">&times;</button>
-        </div>`;
-    }
-    const thumb = it.photo_url ? `<img class="thumb" src="${esc(it.photo_url)}">` : `<div class="thumb-empty"></div>`;
-    const price = '£' + Number(it.sell_price || 0).toFixed(2);
+  wrap.innerHTML = items.map((it, idx) => {
+    const currentCls = idx === currentIndex ? ' current' : '';
+    const tick = it.complete ? '<span class="queue-tick">âœ“</span>' : '';
+    let title, type, removedCls = '';
+    if (it.item_type === 'prompt') { title = it.prompt_label; type = 'Prompt card'; }
+    else if (it.name === null) { title = 'Item removed from Inventory'; type = ''; removedCls = ' removed'; }
+    else { title = it.name; type = 'Â£' + Number(it.sell_price || 0).toFixed(2) + ' Â· ' + it.category; }
     return `
-      <div class="item-row" data-id="${it.id}">
-        ${thumb}
+      <div class="queue-row${currentCls}${removedCls}" data-idx="${idx}">
+        <span class="qnum">${idx + 1}.</span>
         <div class="name-col">
-          <h4>${esc(it.name)}</h4>
-          <div class="price">${price} · ${esc(it.category)}</div>
+          <span class="qtitle">${esc(title)}</span>
+          <span class="qtype">${esc(type)}</span>
         </div>
-        <span class="status-pill ${it.complete ? 'done' : 'pending'}">${it.complete ? 'Presented' : 'Not yet'}</span>
+        ${tick}
+        ${removedCls ? '' : `<button class="jump-btn" data-jump="${idx}" type="button">Jump</button>`}
         <button class="remove-x" data-remove="${it.id}" type="button" title="Remove from plan">&times;</button>
       </div>`;
   }).join('');
 
-  wrap.querySelectorAll('.item-row').forEach(row => {
+  wrap.querySelectorAll('.queue-row').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('[data-remove]')) return;
+      if (e.target.closest('[data-remove]') || e.target.closest('[data-jump]')) return;
       if (row.classList.contains('removed')) return;
-      openOverlay(row.dataset.id);
+      selectIndex(Number(row.dataset.idx));
     });
+  });
+  wrap.querySelectorAll('[data-jump]').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); selectIndex(Number(btn.dataset.jump)); });
   });
   wrap.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Remove this item from the stream plan?')) return;
+      if (!confirm('Remove this from the stream plan?')) return;
       await fetch('/api/stream-plan-items?id=' + encodeURIComponent(btn.dataset.remove), { method: 'DELETE' });
       await loadPlan();
     });
   });
+}
+
+function selectIndex(idx) {
+  const items = planData.items || [];
+  if (idx < 0 || idx >= items.length) return;
+  currentIndex = idx;
+  renderSlide();
+  renderQueue();
+}
+
+function thankYouText(it) {
+  if (soldMessageCache[it.id]) return soldMessageCache[it.id];
+  const tpl = THANK_YOU_TEMPLATES[Math.floor(Math.random() * THANK_YOU_TEMPLATES.length)];
+  const msg = tpl(it.name);
+  soldMessageCache[it.id] = msg;
+  return msg;
+}
+
+function renderSlide() {
+  const items = planData.items || [];
+  const emptyEl = document.getElementById('ws-empty');
+  const bodyEl = document.getElementById('ws-body');
+  if (!items.length) {
+    emptyEl.style.display = '';
+    bodyEl.style.display = 'none';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  bodyEl.style.display = '';
+
+  const it = items[currentIndex];
+  const photoEl = document.getElementById('pv-photo');
+  const photoEmptyEl = document.getElementById('pv-photo-empty');
+  const detailsEl = document.getElementById('pv-details');
+  const scriptEl = document.getElementById('pv-script');
+
+  if (it.item_type === 'prompt') {
+    photoEl.style.display = 'none';
+    photoEmptyEl.style.display = 'none';
+    detailsEl.style.display = 'none';
+    document.getElementById('pv-tag').textContent = 'Prompt';
+    document.getElementById('pv-name').textContent = it.prompt_label || '';
+    const txt = (it.prompt_text || '').trim();
+    scriptEl.textContent = txt;
+    scriptEl.style.display = txt ? '' : 'none';
+    document.getElementById('pv-complete-btn').textContent = 'âœ“ Done with this prompt';
+    document.querySelector('#pv-done .tag').textContent = 'âœ“ Used';
+    document.getElementById('pv-undo-btn').textContent = 'Undo â€” mark not presented';
+  } else if (it.name === null) {
+    photoEl.style.display = 'none';
+    photoEmptyEl.style.display = 'none';
+    detailsEl.style.display = 'none';
+    scriptEl.style.display = 'none';
+    document.getElementById('pv-tag').textContent = '';
+    document.getElementById('pv-name').textContent = 'Item removed from Inventory';
+  } else {
+    detailsEl.style.display = 'flex';
+    if (it.photo_url) { photoEl.src = it.photo_url; photoEl.style.display = ''; photoEmptyEl.style.display = 'none'; }
+    else { photoEl.style.display = 'none'; photoEmptyEl.style.display = 'flex'; }
+
+    document.getElementById('pv-tag').textContent = it.category || '';
+    document.getElementById('pv-name').textContent = it.name || '';
+    document.getElementById('pv-desc').textContent = it.description || '';
+    document.getElementById('pv-price').textContent = 'Â£' + Number(it.sell_price || 0).toFixed(2);
+    const sc = scarcityInfo(it.quantity);
+    document.getElementById('pv-scarcity').textContent = sc.text;
+    document.getElementById('pv-scarcity').className = 'ws-stock ' + sc.cls;
+    const script = it.complete ? thankYouText(it) : (it.hook_note || '').trim();
+    scriptEl.textContent = script;
+    scriptEl.style.display = script ? '' : 'none';
+    document.getElementById('pv-complete-btn').textContent = 'âœ“ Mark as Sold';
+    document.querySelector('#pv-done .tag').textContent = 'âœ“ Sold';
+    document.getElementById('pv-undo-btn').textContent = 'Undo â€” mark as not sold yet';
+  }
+
+  const currentWords = it.item_type === 'prompt' ? (it.prompt_text || '') : (it.hook_note || '');
+  document.getElementById('pv-hook').value = currentWords;
+  document.getElementById('hook-save-msg').textContent = '';
+  const hideWordsBox = it.item_type !== 'prompt' && !!it.complete;
+  const hasWords = !!currentWords.trim();
+  document.getElementById('pv-words-filled').style.display = hideWordsBox ? 'none' : (hasWords ? '' : 'none');
+  document.getElementById('pv-words-editor').style.display = hideWordsBox ? 'none' : (hasWords ? 'none' : '');
+  updateCompleteState(!!it.complete);
+  document.getElementById('cue-counter').textContent = 'Slide ' + (currentIndex + 1) + ' of ' + items.length;
+  document.getElementById('cue-prev-btn').disabled = currentIndex === 0;
+  document.getElementById('cue-next-btn').disabled = currentIndex === items.length - 1;
+}
+
+function updateCompleteState(complete) {
+  document.getElementById('pv-not-done').style.display = complete ? 'none' : '';
+  document.getElementById('pv-done').style.display = complete ? '' : 'none';
 }
 
 // ===== Plan meta autosave =====
@@ -314,7 +490,7 @@ async function savePlanMeta(fields) {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields)
     });
     if (!res.ok) { statusEl.textContent = 'Could not save.'; statusEl.style.color = 'var(--staff-danger)'; return; }
-    statusEl.textContent = 'Saved ✓';
+    statusEl.textContent = 'Saved âœ“';
     statusEl.style.color = 'var(--staff-ok)';
     if (fields.title !== undefined) document.getElementById('page-heading').textContent = fields.title || 'Untitled stream';
     setTimeout(() => { statusEl.textContent = ''; }, 1500);
@@ -330,40 +506,28 @@ document.getElementById('f-planned-at').addEventListener('change', function () {
   savePlanMeta({ planned_at: v });
 });
 
-// ===== Add item search =====
-document.getElementById('add-item-toggle').addEventListener('click', function () {
-  document.getElementById('search-panel').classList.toggle('open');
-});
-
 // ===== Add prompt card =====
 document.getElementById('add-prompt-toggle').addEventListener('click', function () {
   document.getElementById('prompt-panel').classList.toggle('open');
 });
-
-async function addPromptCard(label, text) {
-  await fetch('/api/stream-plan-items', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan_id: Number(planId), item_type: 'prompt', prompt_label: label, prompt_text: text })
-  });
-  await loadPlan();
-}
-
 document.getElementById('custom-p-add').addEventListener('click', async () => {
   const labelEl = document.getElementById('custom-p-label');
   const textEl = document.getElementById('custom-p-text');
   const label = labelEl.value.trim();
   if (!label) { labelEl.focus(); return; }
-  await addPromptCard(label, textEl.value.trim());
+  await postStreamPlanItem({ plan_id: Number(planId), item_type: 'prompt', prompt_label: label, prompt_text: textEl.value.trim() });
   labelEl.value = '';
   textEl.value = '';
+  await loadPlan();
 });
 
+// ===== Search & add inventory =====
 async function runItemSearch() {
   const category = document.getElementById('s-category').value;
   const q = document.getElementById('s-query').value.trim();
   const statusEl = document.getElementById('search-status');
   const wrap = document.getElementById('search-results');
-  if (!category && !q) { wrap.innerHTML = ''; statusEl.textContent = 'Pick a category or type a search to see items.'; return; }
+  if (!category && !q) { wrap.innerHTML = ''; statusEl.textContent = 'Pick a category or type a search.'; return; }
   statusEl.textContent = 'Searching...';
   const p = new URLSearchParams();
   if (category) p.set('category', category);
@@ -376,40 +540,48 @@ async function runItemSearch() {
     wrap.innerHTML = rows.map(r => `
       <div class="search-result-row">
         ${r.photo_url ? `<img class="thumb" src="${esc(r.photo_url)}">` : `<div class="thumb-empty"></div>`}
-        <div class="name-col"><strong>${esc(r.name)}</strong> <span class="staff-muted">£${Number(r.sell_price || 0).toFixed(2)} · ${esc(r.quantity)} in stock</span></div>
-        <button class="staff-btn outline" style="padding:6px 14px;" type="button" data-add="${r.id}">Add</button>
+        <div class="name-col"><strong>${esc(r.name)}</strong><br><span class="staff-muted">Â£${Number(r.sell_price || 0).toFixed(2)} Â· ${esc(r.quantity)} left</span></div>
+        <button class="staff-btn outline" style="padding:5px 12px; font-size:0.75rem;" type="button" data-add="${r.id}">Add</button>
       </div>
     `).join('');
     wrap.querySelectorAll('[data-add]').forEach(btn => {
       btn.addEventListener('click', async () => {
+        const row = rows.find(x => String(x.id) === btn.dataset.add);
+        if (!row) return;
         btn.disabled = true;
-        btn.textContent = 'Adding...';
-        await fetch('/api/stream-plan-items', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan_id: Number(planId), inventory_id: Number(btn.dataset.add) })
-        });
+        btn.textContent = '...';
+        const autoConnectors = document.getElementById('auto-connectors').checked;
+        const itemResp = await postStreamPlanItem({ plan_id: Number(planId), inventory_id: Number(btn.dataset.add) });
+        if (autoConnectors && itemResp && itemResp.id) {
+          const sc = scarcityInfo(row.quantity).text;
+          const price = 'Â£' + Number(row.sell_price || 0).toFixed(2);
+          const desc = (row.notes || '').trim();
+          const script = buildAutoPitch(row.name, desc, sc, price);
+          const patchRes = await fetch('/api/stream-plan-items?id=' + encodeURIComponent(itemResp.id), {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hook_note: script })
+          });
+          if (!patchRes.ok) statusEl.textContent = 'Item added, but the auto pitch failed to save â€” open it and write one manually.';
+        }
         await loadPlan();
-        btn.textContent = 'Added ✓';
+        btn.textContent = 'âœ“';
       });
     });
   } catch (e) {
-    statusEl.textContent = 'Could not search — check your connection.';
+    statusEl.textContent = 'Could not search â€” check your connection.';
   }
 }
 document.getElementById('search-btn').addEventListener('click', runItemSearch);
 document.getElementById('s-query').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runItemSearch(); } });
 document.getElementById('s-category').addEventListener('change', runItemSearch);
 
-// ===== Presentation overlay =====
+// ===== Presenting mode & confidence bubble =====
 let bubbleTimeoutId = null;
-
 function scheduleNextBubble() {
   clearTimeout(bubbleTimeoutId);
   if (!presentingMode) return;
-  const delay = 45000 + Math.random() * 45000; // 45–90s, randomised
+  const delay = 45000 + Math.random() * 45000;
   bubbleTimeoutId = setTimeout(showRandomBubble, delay);
 }
-
 function showRandomBubble() {
   if (!presentingMode) return;
   const text = CONFIDENCE_BUBBLES[Math.floor(Math.random() * CONFIDENCE_BUBBLES.length)];
@@ -419,147 +591,100 @@ function showRandomBubble() {
   setTimeout(() => { bubble.classList.remove('show'); }, 7000);
   scheduleNextBubble();
 }
-
 document.getElementById('start-presenting-btn').addEventListener('click', () => {
   const items = planData.items || [];
   if (!items.length) return;
-  presentingMode = true;
-  const target = items.find(it => !it.complete && it.name !== null) || items.find(it => it.name !== null) || items[0];
-  openOverlay(target.id);
-  scheduleNextBubble();
+  const btn = document.getElementById('start-presenting-btn');
+  presentingMode = !presentingMode;
+  if (presentingMode) {
+    selectIndex(0);
+    scheduleNextBubble();
+    btn.textContent = 'â–  Stop Presenting';
+  } else {
+    clearTimeout(bubbleTimeoutId);
+    document.getElementById('confidence-bubble').classList.remove('show');
+    btn.textContent = 'â–¶ Start Presenting';
+  }
 });
 
-function renderFootnoteStrip() {
-  const wrap = document.getElementById('footnote-strip');
+// ===== Cue navigation =====
+function nextCue() { selectIndex(currentIndex + 1); }
+function prevCue() { selectIndex(currentIndex - 1); }
+document.getElementById('cue-next-btn').addEventListener('click', nextCue);
+document.getElementById('cue-prev-btn').addEventListener('click', prevCue);
+document.addEventListener('keydown', (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextCue(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prevCue(); }
+});
+
+// ===== Your words (hook_note for items, prompt_text for prompts) =====
+document.getElementById('pv-edit-words-btn').addEventListener('click', () => {
+  document.getElementById('pv-words-filled').style.display = 'none';
+  document.getElementById('pv-words-editor').style.display = '';
+  document.getElementById('pv-hook').focus();
+});
+
+document.getElementById('pv-hook').addEventListener('input', function () {
   const items = planData.items || [];
-  wrap.innerHTML = items.map(it => {
-    const isCurrent = String(it.id) === String(currentOverlayItemId);
-    let inner;
-    if (it.item_type === 'prompt') inner = '💬';
-    else if (it.name === null) inner = '—';
-    else if (it.photo_url) inner = `<img src="${esc(it.photo_url)}">`;
-    else inner = '💍';
-    const tick = it.complete ? '<span class="tick">✓</span>' : '';
-    return `<div class="footnote-tile${isCurrent ? ' current' : ''}" data-id="${it.id}" title="${esc(it.item_type === 'prompt' ? it.prompt_label : (it.name || 'Removed item'))}">${inner}${tick}</div>`;
-  }).join('');
-  wrap.querySelectorAll('.footnote-tile').forEach(t => {
-    t.addEventListener('click', () => {
-      const it = items.find(x => String(x.id) === t.dataset.id);
-      if (it && it.item_type !== 'prompt' && it.name === null) return;
-      openOverlay(t.dataset.id);
-    });
-  });
-}
-
-function openOverlay(itemRowId) {
-  const it = (planData.items || []).find(x => String(x.id) === String(itemRowId));
+  const it = items[currentIndex];
   if (!it) return;
-  currentOverlayItemId = it.id;
-
-  const photoEl = document.getElementById('ov-photo');
-  const photoEmptyEl = document.getElementById('ov-photo-empty');
-  const priceEl = document.getElementById('ov-price');
-  const scEl = document.getElementById('ov-scarcity');
-
-  if (it.item_type === 'prompt') {
-    photoEl.style.display = 'none';
-    photoEmptyEl.style.display = 'none';
-    priceEl.style.display = 'none';
-    scEl.style.display = 'none';
-    document.getElementById('ov-category').textContent = 'Prompt';
-    document.getElementById('ov-name').textContent = it.prompt_label || '';
-    document.getElementById('ov-desc').textContent = it.prompt_text || '';
-    document.getElementById('ov-desc').style.fontSize = '1.3rem';
-    document.getElementById('ov-complete-btn').textContent = '✓ Done with this prompt';
-    document.querySelector('#ov-done .tag').textContent = '✓ Used';
-  } else {
-    priceEl.style.display = '';
-    scEl.style.display = '';
-    document.getElementById('ov-desc').style.fontSize = '';
-    if (it.photo_url) { photoEl.src = it.photo_url; photoEl.style.display = ''; photoEmptyEl.style.display = 'none'; }
-    else { photoEl.style.display = 'none'; photoEmptyEl.style.display = 'flex'; }
-
-    document.getElementById('ov-category').textContent = it.category || '';
-    document.getElementById('ov-name').textContent = it.name || '';
-    priceEl.textContent = '£' + Number(it.sell_price || 0).toFixed(2);
-    const sc = scarcityInfo(it.quantity);
-    scEl.textContent = sc.text;
-    scEl.className = 'overlay-scarcity ' + sc.cls;
-    document.getElementById('ov-desc').textContent = it.description || '';
-    document.getElementById('ov-complete-btn').textContent = '✓ Presentation Complete';
-    document.querySelector('#ov-done .tag').textContent = '✓ Presented';
-  }
-
-  document.getElementById('ov-hook').value = it.hook_note || '';
-  document.getElementById('hook-save-msg').textContent = '';
-
-  updateOverlayCompleteState(!!it.complete);
-
-  document.getElementById('overlay-close').textContent = presentingMode ? '✕ Exit Presenting' : '← Back to list';
-  document.getElementById('footnote-strip').classList.toggle('open', presentingMode);
-  if (presentingMode) renderFootnoteStrip();
-
-  document.getElementById('overlay').classList.add('open');
-  window.scrollTo(0, 0);
-}
-
-function updateOverlayCompleteState(complete) {
-  document.getElementById('ov-not-done').style.display = complete ? 'none' : '';
-  document.getElementById('ov-done').style.display = complete ? '' : 'none';
-}
-
-function closeOverlay() {
-  document.getElementById('overlay').classList.remove('open');
-  document.getElementById('footnote-strip').classList.remove('open');
-  document.getElementById('confidence-bubble').classList.remove('show');
-  clearTimeout(bubbleTimeoutId);
-  presentingMode = false;
-  currentOverlayItemId = null;
-}
-document.getElementById('overlay-close').addEventListener('click', closeOverlay);
-
-document.getElementById('ov-hook').addEventListener('blur', async function () {
-  if (!currentOverlayItemId) return;
+  const val = this.value.trim();
+  const scriptEl = document.getElementById('pv-script');
+  scriptEl.textContent = val;
+  scriptEl.style.display = val ? '' : 'none';
+});
+document.getElementById('pv-hook').addEventListener('blur', async function () {
+  const items = planData.items || [];
+  const it = items[currentIndex];
+  if (!it) return;
   const msgEl = document.getElementById('hook-save-msg');
   msgEl.textContent = 'Saving...';
-  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(currentOverlayItemId), {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hook_note: this.value })
+  const field = it.item_type === 'prompt' ? 'prompt_text' : 'hook_note';
+  const res = await fetch('/api/stream-plan-items?id=' + encodeURIComponent(it.id), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: this.value })
   });
-  const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
-  if (it) it.hook_note = this.value;
-  msgEl.textContent = 'Saved ✓';
+  if (!res.ok) { msgEl.textContent = 'Could not save â€” try again.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  it[field] = this.value;
+  msgEl.style.color = 'var(--staff-ok)';
+  msgEl.textContent = 'Saved âœ“';
+  const hasWords = !!this.value.trim();
+  document.getElementById('pv-words-filled').style.display = hasWords ? '' : 'none';
   setTimeout(() => { msgEl.textContent = ''; }, 1200);
 });
 
-document.getElementById('ov-complete-btn').addEventListener('click', async () => {
-  if (!currentOverlayItemId) return;
-  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(currentOverlayItemId), {
+document.getElementById('pv-complete-btn').addEventListener('click', async () => {
+  const items = planData.items || [];
+  const it = items[currentIndex];
+  if (!it) return;
+  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(it.id), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ complete: true })
   });
-  const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
-  if (it) it.complete = 1;
-  renderItems();
-  if (presentingMode) {
-    updateOverlayCompleteState(true);
-    renderFootnoteStrip();
-  } else {
-    closeOverlay();
-  }
+  it.complete = 1;
+  renderSlide();
+  renderQueue();
 });
-
-document.getElementById('ov-undo-btn').addEventListener('click', async () => {
-  if (!currentOverlayItemId) return;
-  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(currentOverlayItemId), {
+document.getElementById('pv-undo-btn').addEventListener('click', async () => {
+  const items = planData.items || [];
+  const it = items[currentIndex];
+  if (!it) return;
+  await fetch('/api/stream-plan-items?id=' + encodeURIComponent(it.id), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ complete: false })
   });
-  const it = (planData.items || []).find(x => String(x.id) === String(currentOverlayItemId));
-  if (it) it.complete = 0;
-  updateOverlayCompleteState(false);
-  renderItems();
-  if (presentingMode) renderFootnoteStrip();
+  it.complete = 0;
+  renderSlide();
+  renderQueue();
 });
 
 if (planId) loadPlan();
+
+// Same iOS Safari back-forward-cache issue as the Stream Plans list -
+// force a fresh reload if this page is restored from that cache rather
+// than showing a frozen, possibly stale, presenting state.
+window.addEventListener('pageshow', function (e) {
+  if (e.persisted && planId) loadPlan();
+});
 </script>
 </body>
 </html>

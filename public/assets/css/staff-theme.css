@@ -29,6 +29,9 @@ body.staff-body {
 
 /* Header bar — taupe, consistent across every staff page */
 .staff-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -169,7 +172,7 @@ body.staff-body {
   background: rgba(255,255,255,0.04);
   color: var(--staff-white);
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: 16px;
   border-radius: 4px;
 }
 .staff-field input:focus, .staff-field select:focus, .staff-field textarea:focus {
