@@ -12,7 +12,7 @@
 
 <header class="staff-header">
   <div class="staff-brand">
-    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div class="staff-logo-box"><img src="/logo" alt="Evelle"></div>
     <div>
       <h1 class="staff-serif">Evelle</h1>
       <div class="staff-tagline">Content Editor · The beauty of being you</div>
@@ -27,6 +27,17 @@
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Content Editor</h1>
   <p class="staff-muted">Choose which page to edit. Changes go live immediately after saving.</p>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-top:24px; max-width:420px;">
+    <h3 class="staff-serif" style="margin-top:0;">Site logo</h3>
+    <p class="staff-muted" style="font-size:0.85rem;">Shows in the header everywhere — shop and staff area. Upload a new one and it updates instantly, no code changes needed.</p>
+    <div style="display:flex; align-items:center; gap:14px; margin:14px 0;">
+      <img id="logo-preview" src="/logo" alt="Current logo" style="height:70px; width:auto; border-radius:6px; border:1px solid var(--staff-line); background:#fff; padding:6px;">
+    </div>
+    <input type="file" id="logo-file" accept="image/*" style="display:none;">
+    <button type="button" class="staff-btn outline" id="logo-upload-btn">Choose new logo</button>
+    <div id="logo-msg" style="font-size:0.85rem; min-height:20px; margin-top:10px;"></div>
+  </div>
 
   <div class="staff-grid" style="margin-top:36px;">
     <a href="content-editor-home.html" class="staff-tool-card">
@@ -57,6 +68,35 @@
     </a>
   </div>
 </main>
+
+<script>
+document.getElementById('logo-upload-btn').addEventListener('click', () => document.getElementById('logo-file').click());
+document.getElementById('logo-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const msgEl = document.getElementById('logo-msg');
+  msgEl.style.color = '';
+  msgEl.textContent = 'Uploading...';
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const upRes = await fetch('/api/upload-image', { method: 'POST', body: fd });
+    const upData = await upRes.json();
+    if (!upRes.ok) { msgEl.textContent = upData.error || 'Upload failed.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    const saveRes = await fetch('/api/site-logo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logo_url: upData.url })
+    });
+    const saveData = await saveRes.json();
+    if (!saveRes.ok) { msgEl.textContent = saveData.error || 'Could not save logo.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    document.getElementById('logo-preview').src = upData.url + '?t=' + Date.now();
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Logo updated — live everywhere now.';
+  } catch (err) {
+    msgEl.textContent = 'Something went wrong: ' + err.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  }
+});
+</script>
 
 </body>
 </html>

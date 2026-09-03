@@ -476,6 +476,20 @@ async function getActiveLibraries(env) {
   return raw.split(",").map(s => s.trim()).filter(Boolean);
 }
 
+async function handleSiteLogo(request, env) {
+  if (request.method === "GET") {
+    const { results } = await env.DB.prepare(`SELECT logo_url FROM shop_config WHERE id = 1`).all();
+    return json({ logo_url: (results[0] && results[0].logo_url) || null });
+  }
+  if (request.method === "POST") {
+    const b = await request.json();
+    if (!b.logo_url) return json({ error: "logo_url required" }, 400);
+    await env.DB.prepare(`UPDATE shop_config SET logo_url = ?1 WHERE id = 1`).bind(b.logo_url).run();
+    return json({ success: true });
+  }
+  return json({ error: "Method not allowed" }, 405);
+}
+
 async function renderShopPage(request, env) {
   const libs = await getActiveLibraries(env);
   const placeholders = libs.map((_, i) => `?${i + 1}`).join(",");
@@ -1434,6 +1448,15 @@ export default {
       return new Response(obj.body, { headers });
     }
 
+    // Site logo — every page points here so a staff upload updates it
+    // everywhere at once, with no redeploy. Falls back to the bundled
+    // default file until a custom one is saved via Content Editor.
+    if (path === "/logo" && request.method === "GET") {
+      const { results } = await env.DB.prepare(`SELECT logo_url FROM shop_config WHERE id = 1`).all();
+      const logoUrl = results[0] && results[0].logo_url;
+      return Response.redirect(new URL(logoUrl || "/assets/images/evelle-logo.png", request.url).toString(), 302);
+    }
+
     // Protect all other /api/* routes
     if (path.startsWith("/api/")) {
       if (!(await isAuthed(request, env))) {
@@ -1456,6 +1479,7 @@ export default {
       if (path === "/api/shop-config") return handleShopConfig(request, env);
       if (path === "/api/shop-reorder") return handleShopReorder(request, env);
       if (path === "/api/upload-image") return handleImageUpload(request, env);
+      if (path === "/api/site-logo") return handleSiteLogo(request, env);
       if (path === "/api/home-content") return handleHomeContent(request, env);
       if (path === "/api/story-content") return handleStoryContent(request, env);
       if (path === "/api/contact-content") return handleContactContent(request, env);
