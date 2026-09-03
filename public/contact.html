@@ -114,9 +114,9 @@ document.getElementById('contact-form').addEventListener('submit', async (e) => 
       btn.disabled = false;
       return;
     }
-    note.textContent = (data.message || "Something went wrong sending your message.") + " You can also email us directly at lisa@evellejewellery.co.uk.";
+    note.textContent = data.message || "Something went wrong sending your message.";
   } catch (err) {
-    note.textContent = "Something went wrong sending your message. You can also email us directly at lisa@evellejewellery.co.uk.";
+    note.textContent = "Something went wrong sending your message — please email us directly at lisa@evellejewellery.co.uk.";
   }
   btn.textContent = 'Send Message';
   btn.disabled = false;
