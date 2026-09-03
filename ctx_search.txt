@@ -1,0 +1,72 @@
+﻿
+> _worker.js:49:async function handleInvReport(request, env, url) {
+  _worker.js:50:  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  _worker.js:51:  const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+  _worker.js:52:  const raw = (url.searchParams.get("categories") || "").split(",").map(s => s.trim()).filter(Boolean);
+  _worker.js:53:  const cats = raw.length ? raw.filter(c => allCats.includes(c)) : allCats;
+  _worker.js:54:  if (!cats.length) return json({ summary: [], items: [] });
+  _worker.js:55:  const placeholders = cats.map((_, i) => `?${i + 1}`).join(",");
+  _worker.js:56:  const { results: summaryRows } = await env.DB.prepare(
+  _worker.js:57:    `SELECT category,
+  _worker.js:58:            COUNT(*) as items,
+  _worker.js:59:            COALESCE(SUM(quantity),0) as total_qty,
+  _worker.js:60:            COALESCE(SUM(quantity * sell_price),0) as total_value,
+  _worker.js:61:            SUM(CASE WHEN quantity <= COALESCE(reorder_at,2) THEN 1 ELSE 0 END) as low_count
+  _worker.js:62:     FROM inventory WHERE category IN (${placeholders}) GROUP BY category`
+  _worker.js:63:  ).bind(...cats).all();
+  _worker.js:64:  const byCategory = {};
+  _worker.js:65:  summaryRows.forEach(r => { byCategory[r.category] = r; });
+  _worker.js:66:  const summary = cats.map(c => byCategory[c] || { category: c, items: 0, total_qty: 0, total_value: 
+0, low_count: 0 });
+  _worker.js:67:
+  _worker.js:68:  const { results: items } = await env.DB.prepare(
+  _worker.js:69:    `SELECT id, sku, name, category, quantity, sell_price, reorder_at FROM inventory WHERE category IN 
+(${placeholders}) ORDER BY category ASC, name ASC`
+> _worker.js:75:async function handleInvSearch(request, env, url) {
+  _worker.js:76:  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  _worker.js:77:  const category = url.searchParams.get("category") || "";
+  _worker.js:78:  const q = url.searchParams.get("q") || "";
+  _worker.js:79:  if (!category && !q) return json([]);
+  _worker.js:80:  let stmt;
+  _worker.js:81:  if (category && q) {
+  _worker.js:82:    const like = `%${q}%`;
+  _worker.js:83:    stmt = env.DB.prepare(
+  _worker.js:84:      `SELECT * FROM inventory WHERE category = ?1 AND (name LIKE ?2 OR sku LIKE ?2 OR supplier LIKE 
+?2 OR supplier_code LIKE ?2) ORDER BY name ASC`
+  _worker.js:85:    ).bind(category, like);
+  _worker.js:86:  } else if (category) {
+  _worker.js:87:    stmt = env.DB.prepare(`SELECT * FROM inventory WHERE category = ?1 ORDER BY name 
+ASC`).bind(category);
+  _worker.js:88:  } else {
+  _worker.js:89:    const like = `%${q}%`;
+  _worker.js:90:    stmt = env.DB.prepare(
+  _worker.js:91:      `SELECT * FROM inventory WHERE name LIKE ?1 OR sku LIKE ?1 OR supplier LIKE ?1 OR supplier_code 
+LIKE ?1 ORDER BY name ASC`
+  _worker.js:92:    ).bind(like);
+  _worker.js:93:  }
+  _worker.js:94:  const { results } = await stmt.all();
+  _worker.js:95:  return json(results);
+> _worker.js:98:async function handleInvLowStock(request, env, url) {
+  _worker.js:99:  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  _worker.js:100:  const category = url.searchParams.get("category") || "";
+  _worker.js:101:  let sql = `SELECT * FROM inventory WHERE shop_position IS NOT NULL AND quantity <= 
+COALESCE(reorder_at, 2)`;
+  _worker.js:102:  const binds = [];
+  _worker.js:103:  if (category) { sql += ` AND category = ?1`; binds.push(category); }
+  _worker.js:104:  sql += ` ORDER BY category ASC, quantity ASC`;
+  _worker.js:105:  const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  _worker.js:106:  return json(results);
+  _worker.js:107:}
+  _worker.js:108:
+  _worker.js:109:// Logs an automatic 'Inventory Stock' expenditure entry when Inventory
+  _worker.js:110:// quantity genuinely increases (new item added, or an existing item
+  _worker.js:111:// restocked) — real money leaving the business, so Lisa never has to
+  _worker.js:112:// re-type a cost she already entered in Inventory. linked_inventory_id is
+  _worker.js:113:// what marks this row as auto-generated: manual entries (the accounting
+  _worker.js:114:// page's entry form) never set it, and can't pick category
+  _worker.js:115:// 'Inventory Stock' either, so the two are always cleanly distinguishable
+  _worker.js:116:// in the ledger.
+  _worker.js:117://
+  _worker.js:118:// Only called when qtyDelta > 0 (never on a decrease or an unchanged
+
+

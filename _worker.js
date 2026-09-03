@@ -66,7 +66,7 @@ async function handleInvReport(request, env, url) {
   const summary = cats.map(c => byCategory[c] || { category: c, items: 0, total_qty: 0, total_value: 0, low_count: 0 });
 
   const { results: items } = await env.DB.prepare(
-    `SELECT id, sku, name, category, quantity, sell_price, reorder_at FROM inventory WHERE category IN (${placeholders}) ORDER BY category ASC, name ASC`
+    `SELECT id, sku, name, category, quantity, shop_qty, sell_price, reorder_at FROM inventory WHERE category IN (${placeholders}) ORDER BY category ASC, name ASC`
   ).bind(...cats).all();
 
   return json({ summary, items });
@@ -98,10 +98,10 @@ async function handleInvSearch(request, env, url) {
 async function handleInvLowStock(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const category = url.searchParams.get("category") || "";
-  let sql = `SELECT * FROM inventory WHERE shop_position IS NOT NULL AND quantity <= COALESCE(reorder_at, 2)`;
+  let sql = `SELECT * FROM inventory WHERE shop_position IS NOT NULL AND shop_qty <= COALESCE(reorder_at, 2)`;
   const binds = [];
   if (category) { sql += ` AND category = ?1`; binds.push(category); }
-  sql += ` ORDER BY category ASC, quantity ASC`;
+  sql += ` ORDER BY category ASC, shop_qty ASC`;
   const { results } = await env.DB.prepare(sql).bind(...binds).all();
   return json(results);
 }
@@ -133,36 +133,32 @@ async function logStockExpenditure(env, { inventoryId, qtyDelta, costPerItem, na
   ).run();
 }
 
+const CATEGORY_CAPS = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
+
 async function handleInvItems(request, env, url) {
   if (request.method === "POST") {
     const b = await request.json();
     const missing = [];
     if (!b.category) missing.push("category");
     if (!b.name) missing.push("name");
-    if (!b.description) missing.push("description");
-    if (!b.photo_url) missing.push("photo");
-    if (!b.sell_price) missing.push("sell price");
-    if (missing.length) return json({ error: "Missing: " + missing.join(", ") + ". All of these are needed before it can go live in the shop." }, 400);
-
-    const caps = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
-    const cap = caps[b.category];
-    if (!cap) return json({ error: "Unknown category" }, 400);
-    const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(shop_position),-1) as maxPos FROM inventory WHERE category = ?1 AND shop_position IS NOT NULL`).bind(b.category).first();
-    if (countRow.n >= cap) return json({ error: b.category + " Library is full (" + cap + "/" + cap + "). Remove a piece from Shop Library before adding another." }, 400);
+    if (!b.supplier) missing.push("supplier");
+    if (!b.cost_per_item) missing.push("cost per item");
+    if (missing.length) return json({ error: "Missing: " + missing.join(", ") + ". These are needed to log the item into the Warehouse." }, 400);
+    if (!CATEGORY_CAPS[b.category]) return json({ error: "Unknown category" }, 400);
 
     const sku = await nextSku(env);
-    const nextPos = countRow.maxPos + 1;
     const quantity = Number(b.quantity) || 0;
     const costPerItem = Number(b.cost_per_item) || 0;
     const insertRes = await env.DB.prepare(
-      `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`
+      `INSERT INTO inventory (sku, name, category, quantity, shop_qty, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
+       VALUES (?1,?2,?3,?4,0,?5,?6,?7,?8,?9,?10,?11,NULL)`
     ).bind(
       sku, b.name, b.category, quantity, costPerItem, b.sell_price || 0,
-      b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || "", nextPos
+      b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || ""
     ).run();
 
-    // A new item's starting quantity is an increase from 0 — real stock cost.
+    // A new item's starting quantity is an increase from 0 — real stock cost,
+    // incurred at Warehouse intake (this is when the cash actually left).
     if (quantity > 0 && costPerItem > 0) {
       await logStockExpenditure(env, { inventoryId: insertRes.meta.last_row_id, qtyDelta: quantity, costPerItem, name: b.name, sku });
     }
@@ -219,6 +215,55 @@ async function handleInvItems(request, env, url) {
   return json({ error: "Method not allowed" }, 405);
 }
 
+// Warehouse -> Inventory transfer. Moves units from the Warehouse pool
+// (quantity) into the Shop pool (shop_qty) for the same row — same SKU,
+// same catalog record, only the location split changes. No cash moves
+// here; the expenditure was already logged at Warehouse intake.
+//
+// On an item's FIRST transfer (shop_position still NULL) this is also the
+// point it goes live: shop-ready fields must be present and the category
+// slot cap is enforced, exactly as item creation used to enforce it.
+async function handleInvTransfer(request, env, url) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const b = await request.json();
+  const id = b.id;
+  const qty = Number(b.qty) || 0;
+  if (!id) return json({ error: "id required" }, 400);
+  if (qty <= 0) return json({ error: "qty must be greater than 0" }, 400);
+
+  const row = await env.DB.prepare(`SELECT id, sku, category, quantity, shop_qty, shop_position, sell_price, photo_url, notes FROM inventory WHERE id = ?1`).bind(id).first();
+  if (!row) return json({ error: "Item not found" }, 404);
+  if (Number(row.quantity) < qty) return json({ error: `Only ${row.quantity} in Warehouse for ${row.sku} — can't transfer ${qty}.` }, 400);
+
+  const firstTransfer = row.shop_position === null;
+  let nextPos = null;
+  if (firstTransfer) {
+    const missing = [];
+    if (!row.sell_price) missing.push("sell price");
+    if (!row.photo_url) missing.push("photo");
+    if (!row.notes) missing.push("description");
+    if (missing.length) return json({ error: `Missing: ${missing.join(", ")}. These must be set on the item before it can go live in the shop.` }, 400);
+
+    const cap = CATEGORY_CAPS[row.category];
+    if (!cap) return json({ error: "Unknown category" }, 400);
+    const countRow = await env.DB.prepare(`SELECT COUNT(*) as n, COALESCE(MAX(shop_position),-1) as maxPos FROM inventory WHERE category = ?1 AND shop_position IS NOT NULL`).bind(row.category).first();
+    if (countRow.n >= cap) return json({ error: row.category + " Library is full (" + cap + "/" + cap + "). Remove a piece from Shop Library before adding another." }, 400);
+    nextPos = countRow.maxPos + 1;
+  }
+
+  if (firstTransfer) {
+    await env.DB.prepare(
+      `UPDATE inventory SET quantity = quantity - ?1, shop_qty = shop_qty + ?1, shop_position = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?3`
+    ).bind(qty, nextPos, id).run();
+  } else {
+    await env.DB.prepare(
+      `UPDATE inventory SET quantity = quantity - ?1, shop_qty = shop_qty + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`
+    ).bind(qty, id).run();
+  }
+
+  return json({ success: true });
+}
+
 // Stream Plans — Lisa's prep tool for Whatnot live shows. Each item on a
 // plan is a shortcut into Inventory (inventory_id), never a copy — the
 // prompt card always reflects the item's current live name, description,
@@ -234,7 +279,7 @@ async function handleStreamPlans(request, env, url) {
       const { results: items } = await env.DB.prepare(
         `SELECT spi.id, spi.position, spi.complete, spi.hook_note, spi.item_type, spi.inventory_id,
                 spi.prompt_label, spi.prompt_text,
-                inv.name, inv.category, inv.notes as description, inv.sell_price, inv.quantity, inv.photo_url, inv.sku
+                inv.name, inv.category, inv.notes as description, inv.sell_price, inv.shop_qty as quantity, inv.photo_url, inv.sku
          FROM stream_plan_items spi
          LEFT JOIN inventory inv ON inv.id = spi.inventory_id
          WHERE spi.plan_id = ?1 ORDER BY spi.position ASC`
@@ -435,7 +480,7 @@ async function renderShopPage(request, env) {
 
   const cardsHtml = results.length
     ? results.map(p => {
-        const soldOut = Number(p.quantity) <= 0;
+        const soldOut = Number(p.shop_qty) <= 0;
         const searchBlob = (p.name + " " + p.category + " " + (CATEGORY_PLURAL[p.category] || "") + " " + (p.notes || "")).toLowerCase();
         return `
       <div class="product-card${soldOut ? ' sold-out' : ''}" data-category="${escapeHtml(p.category)}" data-search="${escapeHtml(searchBlob)}">
@@ -448,7 +493,7 @@ async function renderShopPage(request, env) {
           <h3>${escapeHtml(p.name)}</h3>
           <p class="product-price">\u00a3${Number(p.sell_price || 0).toFixed(2)}</p>
           <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
-          <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.quantity || 0)}"${soldOut ? ' disabled' : ''}>${soldOut ? 'Sold Out' : 'Add to Cart'}</button>
+          <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.shop_qty || 0)}"${soldOut ? ' disabled' : ''}>${soldOut ? 'Sold Out' : 'Add to Cart'}</button>
         </div>
         <div class="product-desc">${escapeHtml(p.notes)}</div>
       </div>`;
@@ -541,7 +586,7 @@ async function renderHomePage(request, env) {
 
   const cardsHtml = products.length
     ? products.map(p => {
-        const soldOut = Number(p.quantity) <= 0;
+        const soldOut = Number(p.shop_qty) <= 0;
         return `
       <div class="product-card${soldOut ? ' sold-out' : ''}">
         <div class="product-image">
@@ -862,9 +907,9 @@ async function renderCheckoutPage(request, env) {
 
 async function handleShopProducts(request, env, url) {
   if (request.method === "GET") {
-    const { results } = await env.DB.prepare(`SELECT id, name, category, sku, quantity, sell_price, photo_url, shop_position FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).all();
+    const { results } = await env.DB.prepare(`SELECT id, name, category, sku, shop_qty, sell_price, photo_url, shop_position FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).all();
     const mapped = results.map(r => ({
-      id: r.id, name: r.name, category: r.category, sku: r.sku, quantity: r.quantity,
+      id: r.id, name: r.name, category: r.category, sku: r.sku, quantity: r.shop_qty,
       price: "\u00a3" + Number(r.sell_price || 0).toFixed(2),
       image_url: r.photo_url, position: r.shop_position
     }));
@@ -991,15 +1036,15 @@ async function confirmOrder(env, input) {
   const decremented = []; // { id, qty, sku, name, category, sell_price, cost_per_item }
   for (const line of items) {
     const row = await env.DB.prepare(
-      `UPDATE inventory SET quantity = quantity - ?1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?2 AND quantity >= ?1
+      `UPDATE inventory SET shop_qty = shop_qty - ?1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?2 AND shop_qty >= ?1
        RETURNING sku, name, category, sell_price, cost_per_item`
     ).bind(line.qty, line.id).first();
 
     if (!row) {
       // Guard failed — undo every decrement already made earlier in this order.
       for (const done of decremented) {
-        await env.DB.prepare(`UPDATE inventory SET quantity = quantity + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`)
+        await env.DB.prepare(`UPDATE inventory SET shop_qty = shop_qty + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`)
           .bind(done.qty, done.id).run();
       }
       const failedItem = await env.DB.prepare(`SELECT id, name, sku FROM inventory WHERE id = ?1`).bind(line.id).first();
@@ -1096,8 +1141,8 @@ async function priceCartLines(env, items) {
   if (!lines.length) return { error: "empty_cart" };
   const priced = [];
   for (const line of lines) {
-    const row = await env.DB.prepare(`SELECT id, sku, name, category, sell_price, quantity FROM inventory WHERE id = ?1`).bind(line.id).first();
-    if (!row || Number(row.quantity) < line.qty) {
+    const row = await env.DB.prepare(`SELECT id, sku, name, category, sell_price, shop_qty FROM inventory WHERE id = ?1`).bind(line.id).first();
+    if (!row || Number(row.shop_qty) < line.qty) {
       return { error: "item_unavailable", item: row ? { id: row.id, name: row.name, sku: row.sku } : { id: line.id } };
     }
     priced.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, price: Number(row.sell_price) || 0 });
@@ -1391,6 +1436,7 @@ export default {
       if (path === "/api/inv-report") return handleInvReport(request, env, url);
       if (path === "/api/inv-lowstock") return handleInvLowStock(request, env, url);
       if (path === "/api/inv-items") return handleInvItems(request, env, url);
+      if (path === "/api/inv-transfer") return handleInvTransfer(request, env, url);
       if (path === "/api/stream-plans") return handleStreamPlans(request, env, url);
       if (path === "/api/stream-plan-items") return handleStreamPlanItems(request, env, url);
       if (path === "/api/orders") return handleOrders(request, env, url);

@@ -1,0 +1,37 @@
+﻿59: COALESCE(SUM(quantity),0) as total_qty,
+60: COALESCE(SUM(quantity * sell_price),0) as total_value,
+61: SUM(CASE WHEN quantity <= COALESCE(reorder_at,2) THEN 1 ELSE 0 END) as low_count
+69: `SELECT id, sku, name, category, quantity, sell_price, reorder_at FROM inventory WHERE category IN (${placeholders}) ORDER BY category ASC, name ASC`
+101: let sql = `SELECT * FROM inventory WHERE shop_position IS NOT NULL AND quantity <= COALESCE(reorder_at, 2)`;
+104: sql += ` ORDER BY category ASC, quantity ASC`;
+110: // quantity genuinely increases (new item added, or an existing item
+119: // quantity) and costPerItem > 0 (a zero-cost item has nothing real to
+155: const quantity = Number(b.quantity) || 0;
+158: `INSERT INTO inventory (sku, name, category, quantity, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
+161: sku, b.name, b.category, quantity, costPerItem, b.sell_price || 0,
+165: // A new item's starting quantity is an increase from 0 — real stock cost.
+166: if (quantity > 0 && costPerItem > 0) {
+167: await logStockExpenditure(env, { inventoryId: insertRes.meta.last_row_id, qtyDelta: quantity, costPerItem, name: b.name, sku });
+177: // Read the current row FIRST (whenever quantity is part of this edit) so
+180: // unchanged quantity, or a decrease, must never log a stock expenditure.
+182: if (b.quantity !== undefined) {
+183: current = await env.DB.prepare(`SELECT quantity, cost_per_item, name, sku FROM inventory WHERE id = ?1`).bind(id).first();
+186: const fieldMap = { name: "name", category: "category", quantity: "quantity", cost_per_item: "cost_per_item", sell_price: "sell_price", reorder_at: "reorder_at", supplier: "supplier", supplier_code: "supplier_code", photo_url: "photo_url", description: "notes" };
+195: const qtyDelta = (Number(b.quantity) || 0) - (Number(current.quantity) || 0);
+198: // already on file. A pure cost correction (no quantity field at all)
+200: // b.quantity is present.
+237: inv.name, inv.category, inv.notes as description, inv.sell_price, inv.quantity, inv.photo_url, inv.sku
+438: const soldOut = Number(p.quantity) <= 0;
+451: <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.quantity || 0)}"${soldOut ? ' disabled' : ''}>${soldOut ? 'Sold Out' : 'Add to Cart'}</button>
+544: const soldOut = Number(p.quantity) <= 0;
+865: const { results } = await env.DB.prepare(`SELECT id, name, category, sku, quantity, sell_price, photo_url, shop_position FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, shop_position ASC`).all();
+867: id: r.id, name: r.name, category: r.category, sku: r.sku, quantity: r.quantity,
+969: // single `UPDATE ... WHERE quantity >= ? RETURNING ...` statement, so the
+973: // UPDATE's WHERE clause can still see quantity >= qty and succeed — the
+994: `UPDATE inventory SET quantity = quantity - ?1, updated_at = CURRENT_TIMESTAMP
+995: WHERE id = ?2 AND quantity >= ?1
+1002: await env.DB.prepare(`UPDATE inventory SET quantity = quantity + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`)
+1038: `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total, unit_cost, line_cost)
+1099: const row = await env.DB.prepare(`SELECT id, sku, name, category, sell_price, quantity FROM inventory WHERE id = ?1`).bind(line.id).first();
+1100: if (!row || Number(row.quantity) < line.qty) {
+1145: quantity: String(it.qty),

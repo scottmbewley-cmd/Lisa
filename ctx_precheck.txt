@@ -1,0 +1,28 @@
+﻿
+  _worker.js:1134:// lines — never trusts a client-submitted price. Also rejects up front if
+  _worker.js:1135:// any line already exceeds current stock, so we don't send a customer to
+  _worker.js:1136:// PayPal for a cart that's doomed to fail at capture time. This is a
+  _worker.js:1137:// read-only availability check (no decrement) — the real, race-safe
+  _worker.js:1138:// guard is confirmOrder()'s guarded UPDATE at capture time.
+  _worker.js:1139:async function priceCartLines(env, items) {
+  _worker.js:1140:  const lines = mergeCartLines(items);
+  _worker.js:1141:  if (!lines.length) return { error: "empty_cart" };
+  _worker.js:1142:  const priced = [];
+  _worker.js:1143:  for (const line of lines) {
+> _worker.js:1144:    const row = await env.DB.prepare(`SELECT id, sku, name, category, sell_price, quantity FROM 
+inventory WHERE id = ?1`).bind(line.id).first();
+> _worker.js:1145:    if (!row || Number(row.quantity) < line.qty) {
+  _worker.js:1146:      return { error: "item_unavailable", item: row ? { id: row.id, name: row.name, sku: row.sku } : 
+{ id: line.id } };
+  _worker.js:1147:    }
+  _worker.js:1148:    priced.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, 
+price: Number(row.sell_price) || 0 });
+  _worker.js:1149:  }
+  _worker.js:1150:  const subtotal = priced.reduce((sum, it) => sum + it.price * it.qty, 0);
+  _worker.js:1151:  const shipping = await getPostageCost(env);
+  _worker.js:1152:  return { items: priced, subtotal, shipping, total: subtotal + shipping };
+  _worker.js:1153:}
+  _worker.js:1154:
+  _worker.js:1155:async function handlePaypalCreateOrder(request, env) {
+
+
