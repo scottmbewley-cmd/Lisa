@@ -1,3 +1,5 @@
 .wrangler/
 node_modules/
 .dev.vars
+deploy_log*.txt
+tail_log.txt

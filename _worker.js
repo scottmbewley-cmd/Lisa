@@ -737,21 +737,11 @@ async function sendSmtpMail(env, { to, replyTo, subject, text }) {
   res = await readSmtpResponse(reader);
   if (res.code !== 334) throw new Error("AUTH LOGIN not offered: " + res.text);
 
-  try {
-    await send(btoa(env.ZOHO_SMTP_USER));
-  } catch (e) {
-    const u = env.ZOHO_SMTP_USER || "";
-    throw new Error("btoa failed on USER (len=" + u.length + ", codes=" + [...u].map(c => c.charCodeAt(0)).join(",") + "): " + e.message);
-  }
+  await send(btoa(env.ZOHO_SMTP_USER));
   res = await readSmtpResponse(reader);
   if (res.code !== 334) throw new Error("AUTH username rejected: " + res.text);
 
-  try {
-    await send(btoa(env.ZOHO_SMTP_PASS));
-  } catch (e) {
-    const p = env.ZOHO_SMTP_PASS || "";
-    throw new Error("btoa failed on PASS (len=" + p.length + ", codes=" + [...p].map(c => c.charCodeAt(0)).join(",") + "): " + e.message);
-  }
+  await send(btoa(env.ZOHO_SMTP_PASS));
   res = await readSmtpResponse(reader);
   if (res.code !== 235) throw new Error("AUTH failed — check ZOHO_SMTP_USER/ZOHO_SMTP_PASS: " + res.text);
 
@@ -809,7 +799,6 @@ async function handleContactSubmit(request, env) {
     });
     return json({ success: true });
   } catch (e) {
-    console.error("Contact form SMTP send failed:", e.message, e.stack);
     return json({ error: "send_failed", message: "Something went wrong sending your message — please try again or email us directly." }, 502);
   }
 }
