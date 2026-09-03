@@ -737,11 +737,21 @@ async function sendSmtpMail(env, { to, replyTo, subject, text }) {
   res = await readSmtpResponse(reader);
   if (res.code !== 334) throw new Error("AUTH LOGIN not offered: " + res.text);
 
-  await send(btoa(env.ZOHO_SMTP_USER));
+  try {
+    await send(btoa(env.ZOHO_SMTP_USER));
+  } catch (e) {
+    const u = env.ZOHO_SMTP_USER || "";
+    throw new Error("btoa failed on USER (len=" + u.length + ", codes=" + [...u].map(c => c.charCodeAt(0)).join(",") + "): " + e.message);
+  }
   res = await readSmtpResponse(reader);
   if (res.code !== 334) throw new Error("AUTH username rejected: " + res.text);
 
-  await send(btoa(env.ZOHO_SMTP_PASS));
+  try {
+    await send(btoa(env.ZOHO_SMTP_PASS));
+  } catch (e) {
+    const p = env.ZOHO_SMTP_PASS || "";
+    throw new Error("btoa failed on PASS (len=" + p.length + ", codes=" + [...p].map(c => c.charCodeAt(0)).join(",") + "): " + e.message);
+  }
   res = await readSmtpResponse(reader);
   if (res.code !== 235) throw new Error("AUTH failed — check ZOHO_SMTP_USER/ZOHO_SMTP_PASS: " + res.text);
 
