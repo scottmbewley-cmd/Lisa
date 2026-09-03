@@ -799,6 +799,7 @@ async function handleContactSubmit(request, env) {
     });
     return json({ success: true });
   } catch (e) {
+    console.error("Contact form SMTP send failed:", e.message, e.stack);
     return json({ error: "send_failed", message: "Something went wrong sending your message — please try again or email us directly." }, 502);
   }
 }
