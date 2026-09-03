@@ -35,14 +35,6 @@
   .section-toggle.open .chevron { transform: rotate(90deg); }
   .collapsible-content { display: none; margin-top: 14px; }
   .collapsible-content.open { display: block; }
-  @media print {
-    body.staff-body > *:not(#print-area) { display: none !important; }
-    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
-    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
-    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
-    #print-area th { background: #eee; }
-    #print-area .cat-row td { background: #f5f5f5; font-weight: 700; }
-  }
   .print-only { display: none; }
 </style>
 </head>
@@ -57,6 +49,7 @@
     </div>
   </div>
   <nav class="staff-nav">
+    <a href="warehouse.html">Warehouse</a>
     <a href="index.html">&larr; Dashboard</a>
   </nav>
 </header>
@@ -64,57 +57,35 @@
 <main class="staff-main">
   <span class="staff-eyebrow">Staff area</span>
   <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Inventory</h1>
-  <p class="staff-muted">Log every piece here — fill it in fully and it goes straight to Shop Library, live on the site. This is where its SKU is created and its stock level lives.</p>
+  <p class="staff-muted">Everything currently live in the shop. Stock here only moves by transferring more from the <a href="warehouse.html" style="color:var(--staff-gold);">Warehouse</a> — sales decrease it automatically. Edit the shop-facing details (photo, price, description) here.</p>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <h3 class="staff-serif" id="form-title" style="margin-top:0;">Add an item</h3>
-    <div class="inv-grid">
-      <div class="staff-field"><label>Category</label>
-        <select id="f-category">
-          <option value="">— select —</option>
+    <button type="button" id="lowstock-toggle" class="section-toggle open">
+      <span class="chevron">▸</span> Running low <span id="lowstock-count" class="staff-pill" style="margin-left:4px;">0</span>
+    </button>
+    <div id="lowstock-content" class="collapsible-content open">
+      <p class="staff-muted" style="font-size:0.85rem;">Live in the shop, at or under its reorder point — transfer more from the Warehouse.</p>
+      <div class="staff-field" style="max-width:220px;"><label>Category</label>
+        <select id="lowstock-category">
+          <option value="">All categories</option>
           <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
         </select>
       </div>
-      <div class="staff-field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. Gold hoop earrings" /></div>
+      <div id="low-stock-wrap"><p class="staff-muted" style="font-size:0.85rem;">Checking stock…</p></div>
+    </div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" id="form-title" style="margin-top:0;">Editing an item</h3>
+    <p class="staff-muted" style="font-size:0.85rem; margin-top:-8px;">Select an item below to edit its shop-facing details. Quantity is not editable here — transfer more from the Warehouse instead.</p>
+    <div class="inv-grid">
+      <div class="staff-field"><label>Category</label><input type="text" id="f-category" disabled /></div>
+      <div class="staff-field"><label>Name</label><input type="text" id="f-name" /></div>
       <div class="staff-field full">
         <label>Description</label>
-        <textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece. Required — this is what shows to customers on hover."></textarea>
-        <div style="display:flex; gap:10px; margin-top:8px;">
-          <select id="f-material-picker" style="flex:1;">
-            <option value="">+ Add material...</option>
-            <option value="316L Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant">316L Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
-            <option value="316L Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant">316L Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
-            <option value="316L Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant">316L Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant</option>
-            <option value="304 Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant">304 Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
-            <option value="304 Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant">304 Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
-            <option value="304 Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant">304 Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant</option>
-          </select>
-          <select id="f-stone-picker" style="flex:1;">
-            <option value="">+ Add stone...</option>
-            <option value="Moissanite">Moissanite</option>
-            <option value="Rhinestone">Rhinestone</option>
-            <option value="Cubic Zirconia">Cubic Zirconia</option>
-            <option value="Gemstone">Gemstone</option>
-          </select>
-        </div>
+        <textarea id="f-description" rows="3"></textarea>
       </div>
-      <div class="staff-field"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. Everful Wholesale" /></div>
-      <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
-      <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
-      <div class="staff-field"><label>Reorder at</label><input type="number" min="0" id="f-reorder" value="2" /></div>
-      <div class="staff-field full"><label>Paid in</label>
-        <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-          <select id="f-currency" style="max-width:150px;">
-            <option value="GBP">£ Pounds</option>
-            <option value="USD">$ Dollars</option>
-          </select>
-          <div id="usd-fields" style="display:none; gap:10px; align-items:end; flex-wrap:wrap;">
-            <div class="staff-field" style="margin-bottom:0;"><label>Amount ($)</label><input type="number" min="0" step="0.01" id="f-usd-amount" style="width:110px;" /></div>
-            <div class="staff-field" style="margin-bottom:0;"><label>Rate (£ per $1)</label><input type="number" min="0" step="0.0001" id="f-usd-rate" value="0.79" style="width:110px;" /></div>
-          </div>
-        </div>
-      </div>
-      <div class="staff-field"><label>Cost per item (£)</label><input type="number" min="0" step="0.01" id="f-cost" /></div>
+      <div class="staff-field"><label>Reorder at</label><input type="number" min="0" id="f-reorder" /></div>
       <div class="staff-field"><label>Sell price (£)</label><input type="number" min="0" step="0.01" id="f-price" /></div>
       <div class="staff-field full"><label>Photo</label>
         <div class="photo-row">
@@ -127,49 +98,16 @@
     </div>
     <div id="status-msg" style="margin-top:14px;"></div>
     <div style="margin-top:10px; display:flex; gap:10px;">
-      <button class="staff-btn" id="save-btn">Add item</button>
-      <button class="staff-btn outline" id="cancel-edit-btn" style="display:none;">Cancel edit</button>
-    </div>
-  </div>
-
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <button type="button" id="lowstock-toggle" class="section-toggle">
-      <span class="chevron">▸</span> Running low <span id="lowstock-count" class="staff-pill" style="margin-left:4px;">0</span>
-    </button>
-    <div id="lowstock-content" class="collapsible-content">
-      <p class="staff-muted" style="font-size:0.85rem;">Anything currently live in the shop, at or under its reorder point.</p>
-      <div class="staff-field" style="max-width:220px;"><label>Category</label>
-        <select id="lowstock-category">
-          <option value="">All categories</option>
-          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
-        </select>
-      </div>
-      <div id="low-stock-wrap"><p class="staff-muted" style="font-size:0.85rem;">Checking stock…</p></div>
-    </div>
-  </div>
-
-  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
-    <button type="button" id="report-toggle" class="section-toggle">
-      <span class="chevron">▸</span> Stock report
-    </button>
-    <div id="report-content" class="collapsible-content">
-      <p class="staff-muted" style="font-size:0.85rem;">Pick one, several, or all — see total remaining stock and value at a glance.</p>
-      <div id="report-checks" style="display:flex; gap:16px; flex-wrap:wrap; margin:14px 0;"></div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="staff-btn outline" id="report-all-btn" type="button" style="padding:8px 16px;">Select all</button>
-        <button class="staff-btn outline" id="report-none-btn" type="button" style="padding:8px 16px;">Select none</button>
-        <button class="staff-btn" id="report-run-btn" type="button">Run report</button>
-        <button class="staff-btn outline" id="report-print-btn" type="button" style="padding:8px 16px;">Print report</button>
-      </div>
-      <div id="report-results" style="margin-top:16px;"></div>
+      <button class="staff-btn" id="save-btn" disabled>Save changes</button>
+      <button class="staff-btn outline" id="cancel-edit-btn" style="display:none;">Cancel</button>
     </div>
   </div>
 
   <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
-    <button type="button" id="search-toggle" class="section-toggle">
-      <span class="chevron">▸</span> Find an item in the database
+    <button type="button" id="search-toggle" class="section-toggle open">
+      <span class="chevron">▸</span> Everything live in the shop
     </button>
-    <div id="search-content" class="collapsible-content">
+    <div id="search-content" class="collapsible-content open">
       <div class="search-row">
         <div class="staff-field"><label>Category</label>
           <select id="s-category">
@@ -177,26 +115,19 @@
             <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
           </select>
         </div>
-        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
-        <button class="staff-btn" id="search-btn">Search</button>
+        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name or SKU" /></div>
       </div>
-      <div id="search-status">Pick a category or type a search to see results.</div>
+      <div id="search-status">Loading…</div>
       <div id="search-results"></div>
     </div>
   </div>
 </main>
 
-<div id="print-area" class="print-only">
-  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Stock Report</h2>
-  <p id="print-date" style="margin:0 0 16px; font-size:0.9rem;"></p>
-  <div id="print-table-wrap"></div>
-</div>
-
 <script>
 let editingId = null;
 let pendingPhotoFile = null;
 let currentPhotoUrl = '';
-let lastResults = [];
+let allItems = [];
 
 async function fetchWithTimeout(url, options, ms) {
   const controller = new AbortController();
@@ -206,6 +137,17 @@ async function fetchWithTimeout(url, options, ms) {
 }
 
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function wireToggle(btnId, contentId) {
+  const btn = document.getElementById(btnId);
+  const content = document.getElementById(contentId);
+  btn.addEventListener('click', () => {
+    const isOpen = content.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
+  });
+}
+wireToggle('lowstock-toggle', 'lowstock-content');
+wireToggle('search-toggle', 'search-content');
 
 async function loadLowStock() {
   const wrap = document.getElementById('low-stock-wrap');
@@ -223,9 +165,8 @@ async function loadLowStock() {
         <h4>${esc(cat)}</h4>
         ${groups[cat].map(r => `
           <div class="low-row">
-            <div><strong>${esc(r.name)}</strong> <span class="staff-muted">(${esc(r.sku)})</span><br>
-            <span class="supp">${r.supplier ? 'Reorder from ' + esc(r.supplier) + (r.supplier_code ? ' — their code: ' + esc(r.supplier_code) : '') : 'No supplier on file'}</span></div>
-            <span class="qty">${esc(r.quantity)} left</span>
+            <div><strong>${esc(r.name)}</strong> <span class="staff-muted">(${esc(r.sku)})</span></div>
+            <span class="qty">${esc(r.shop_qty)} in shop</span>
           </div>
         `).join('')}
       </div>
@@ -235,18 +176,6 @@ async function loadLowStock() {
   }
 }
 document.getElementById('lowstock-category').addEventListener('change', loadLowStock);
-
-function wireToggle(btnId, contentId) {
-  const btn = document.getElementById(btnId);
-  const content = document.getElementById(contentId);
-  btn.addEventListener('click', () => {
-    const isOpen = content.classList.toggle('open');
-    btn.classList.toggle('open', isOpen);
-  });
-}
-wireToggle('lowstock-toggle', 'lowstock-content');
-wireToggle('report-toggle', 'report-content');
-wireToggle('search-toggle', 'search-content');
 
 function setPhotoPreview(url) {
   currentPhotoUrl = url || '';
@@ -269,39 +198,15 @@ document.getElementById('f-photo-file').addEventListener('change', (e) => {
   setPhotoPreview(URL.createObjectURL(file));
 });
 
-const savedRate = localStorage.getItem('inv-usd-rate');
-if (savedRate) document.getElementById('f-usd-rate').value = savedRate;
-function convertUsd() {
-  const usd = parseFloat(document.getElementById('f-usd-amount').value);
-  const rate = parseFloat(document.getElementById('f-usd-rate').value);
-  if (usd && rate) {
-    document.getElementById('f-cost').value = (usd * rate).toFixed(2);
-    localStorage.setItem('inv-usd-rate', rate);
-  }
-}
-document.getElementById('f-currency').addEventListener('change', () => {
-  const isUsd = document.getElementById('f-currency').value === 'USD';
-  document.getElementById('usd-fields').style.display = isUsd ? 'flex' : 'none';
-  if (isUsd) convertUsd();
-});
-document.getElementById('f-usd-amount').addEventListener('input', convertUsd);
-document.getElementById('f-usd-rate').addEventListener('input', convertUsd);
-
 function resetForm() {
   editingId = null;
   pendingPhotoFile = null;
   setPhotoPreview('');
-  ['f-category','f-name','f-description','f-supplier','f-supplier-code'].forEach(id => document.getElementById(id).value = '');
+  ['f-category','f-name','f-description','f-reorder','f-price'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-photo-file').value = '';
-  document.getElementById('f-quantity').value = 0;
-  document.getElementById('f-reorder').value = 2;
-  document.getElementById('f-cost').value = '';
-  document.getElementById('f-price').value = '';
-  document.getElementById('f-currency').value = 'GBP';
-  document.getElementById('usd-fields').style.display = 'none';
-  document.getElementById('f-usd-amount').value = '';
-  document.getElementById('form-title').textContent = 'Add an item';
-  document.getElementById('save-btn').textContent = 'Add item';
+  document.getElementById('form-title').textContent = 'Editing an item';
+  document.getElementById('save-btn').textContent = 'Save changes';
+  document.getElementById('save-btn').disabled = true;
   document.getElementById('cancel-edit-btn').style.display = 'none';
 }
 
@@ -310,56 +215,28 @@ function openForEdit(row) {
   document.getElementById('f-category').value = row.category || '';
   document.getElementById('f-name').value = row.name || '';
   document.getElementById('f-description').value = row.notes || '';
-  document.getElementById('f-supplier').value = row.supplier || '';
-  document.getElementById('f-supplier-code').value = row.supplier_code || '';
-  document.getElementById('f-quantity').value = row.quantity || 0;
   document.getElementById('f-reorder').value = (row.reorder_at === null || row.reorder_at === undefined) ? 2 : row.reorder_at;
-  document.getElementById('f-cost').value = row.cost_per_item || '';
   document.getElementById('f-price').value = row.sell_price || '';
-  document.getElementById('f-currency').value = 'GBP';
-  document.getElementById('usd-fields').style.display = 'none';
   setPhotoPreview(row.photo_url || '');
   document.getElementById('form-title').textContent = 'Editing ' + row.sku;
   document.getElementById('save-btn').textContent = 'Save changes';
+  document.getElementById('save-btn').disabled = false;
   document.getElementById('cancel-edit-btn').style.display = '';
   document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-function appendToDescription(text) {
-  const el = document.getElementById('f-description');
-  el.value = el.value.trim() ? el.value.trim() + ', ' + text : text;
-}
-document.getElementById('f-material-picker').addEventListener('change', function () {
-  if (this.value) { appendToDescription(this.value); this.value = ''; }
-});
-document.getElementById('f-stone-picker').addEventListener('change', function () {
-  if (this.value) { appendToDescription(this.value); this.value = ''; }
-});
 document.getElementById('cancel-edit-btn').addEventListener('click', function () { resetForm(); invTracker.reset(); });
 
 const invTracker = staffTrackUnsaved(
-  ['f-category','f-name','f-description','f-supplier','f-supplier-code','f-quantity','f-reorder','f-currency','f-usd-amount','f-usd-rate','f-cost','f-price','f-photo-file','f-material-picker','f-stone-picker'].map(id => document.getElementById(id)),
+  ['f-name','f-description','f-reorder','f-price','f-photo-file'].map(id => document.getElementById(id)),
   document.getElementById('save-btn')
 );
 
 document.getElementById('save-btn').addEventListener('click', async () => {
+  if (!editingId) return;
   const msgEl = document.getElementById('status-msg');
-  const category = document.getElementById('f-category').value;
   const name = document.getElementById('f-name').value.trim();
-  const description = document.getElementById('f-description').value.trim();
-  const sellPrice = document.getElementById('f-price').value;
   msgEl.style.color = '';
-  if (!category || !name) { msgEl.textContent = 'Category and name are required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
-  if (!editingId) {
-    const missing = [];
-    if (!description) missing.push('description');
-    if (!currentPhotoUrl && !pendingPhotoFile) missing.push('photo');
-    if (!sellPrice) missing.push('sell price');
-    if (missing.length) {
-      msgEl.textContent = 'Missing: ' + missing.join(', ') + '. All of these are needed before it can go live in the shop.';
-      msgEl.style.color = 'var(--staff-danger)';
-      return;
-    }
-  }
+  if (!name) { msgEl.textContent = 'Name is required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
 
   const saveBtn = document.getElementById('save-btn');
   saveBtn.disabled = true;
@@ -376,41 +253,25 @@ document.getElementById('save-btn').addEventListener('click', async () => {
     }
 
     const payload = {
-      category: category, name: name,
+      name: name,
       description: document.getElementById('f-description').value.trim(),
-      supplier: document.getElementById('f-supplier').value.trim(),
-      supplier_code: document.getElementById('f-supplier-code').value.trim(),
-      quantity: Number(document.getElementById('f-quantity').value) || 0,
       reorder_at: Number(document.getElementById('f-reorder').value) || 0,
-      cost_per_item: Number(document.getElementById('f-cost').value) || 0,
       sell_price: Number(document.getElementById('f-price').value) || 0,
       photo_url: photoUrl
     };
 
     msgEl.textContent = 'Saving...';
-    let res, data;
-    if (editingId) {
-      res = await fetchWithTimeout('/api/inv-items?id=' + encodeURIComponent(editingId), {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      }, 15000);
-      data = await res.json();
-      if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
-      msgEl.style.color = 'var(--staff-ok)';
-      msgEl.textContent = 'Saved.';
-      invTracker.markSaved();
-    } else {
-      res = await fetchWithTimeout('/api/inv-items', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      }, 15000);
-      data = await res.json();
-      if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong adding that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
-      msgEl.style.color = 'var(--staff-ok)';
-      msgEl.textContent = 'Added — SKU ' + data.sku + '. Live in the shop now.';
-      invTracker.markSaved();
-    }
+    const res = await fetchWithTimeout('/api/inv-items?id=' + encodeURIComponent(editingId), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    }, 15000);
+    const data = await res.json();
+    if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    msgEl.style.color = 'var(--staff-ok)';
+    msgEl.textContent = 'Saved.';
+    invTracker.markSaved();
     resetForm();
     loadLowStock();
-    runSearch();
+    loadAll();
   } catch (err) {
     msgEl.textContent = err.name === 'AbortError' ? 'That timed out — try again.' : 'Something went wrong: ' + err.message;
     msgEl.style.color = 'var(--staff-danger)';
@@ -419,143 +280,60 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   }
 });
 
-async function runSearch() {
+function renderList() {
   const category = document.getElementById('s-category').value;
-  const q = document.getElementById('s-query').value.trim();
+  const q = document.getElementById('s-query').value.trim().toLowerCase();
   const statusEl = document.getElementById('search-status');
   const wrap = document.getElementById('search-results');
-  if (!category && !q) {
-    wrap.innerHTML = '';
-    statusEl.textContent = 'Pick a category or type a search to see results.';
-    statusEl.style.color = '';
-    return;
-  }
-  statusEl.textContent = 'Searching...';
-  statusEl.style.color = '';
-  const params = new URLSearchParams();
-  if (category) params.set('category', category);
-  if (q) params.set('q', q);
+  let rows = allItems;
+  if (category) rows = rows.filter(r => r.category === category);
+  if (q) rows = rows.filter(r => (r.name || '').toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q));
+  if (!rows.length) { wrap.innerHTML = ''; statusEl.textContent = 'No items match.'; return; }
+  statusEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's') + ' live in the shop.';
+  wrap.innerHTML = '' +
+    '<table class="staff-table">' +
+      '<thead><tr><th>Photo</th><th>Name</th><th>SKU</th><th>Category</th><th>In Shop</th><th>Price</th><th></th></tr></thead>' +
+      '<tbody>' +
+        rows.map(function (r) {
+          return '<tr data-id="' + r.id + '">' +
+            '<td>' + (r.photo_url ? '<img class="thumb" src="' + esc(r.photo_url) + '">' : '<div class="thumb-empty"></div>') + '</td>' +
+            '<td>' + esc(r.name) + '</td>' +
+            '<td class="staff-muted">' + esc(r.sku) + '</td>' +
+            '<td>' + esc(r.category) + '</td>' +
+            '<td>' + esc(r.shop_qty) + '</td>' +
+            '<td class="staff-muted">£' + Number(r.sell_price || 0).toFixed(2) + '</td>' +
+            '<td class="row-actions">' +
+              '<button class="staff-btn outline edit-btn" data-id="' + r.id + '" style="padding:6px 12px;">Edit</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('') +
+      '</tbody>' +
+    '</table>';
+  wrap.querySelectorAll('.edit-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      const row = allItems.find(function (r) { return String(r.id) === b.dataset.id; });
+      if (row) openForEdit(row);
+    });
+  });
+}
+document.getElementById('s-query').addEventListener('input', renderList);
+document.getElementById('s-category').addEventListener('change', renderList);
+
+async function loadAll() {
+  const statusEl = document.getElementById('search-status');
+  statusEl.textContent = 'Loading…';
   try {
-    const res = await fetch('/api/inv-search?' + params.toString());
-    const rows = await res.json();
-    lastResults = rows;
-    if (!rows.length) { wrap.innerHTML = ''; statusEl.textContent = 'No items match.'; return; }
-    statusEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's') + '.';
-    wrap.innerHTML = '' +
-      '<table class="staff-table">' +
-        '<thead><tr><th>Photo</th><th>Name</th><th>SKU</th><th>Category</th><th>Qty</th><th>Supplier</th><th>Code</th><th></th></tr></thead>' +
-        '<tbody>' +
-          rows.map(function (r) {
-            return '<tr data-id="' + r.id + '">' +
-              '<td>' + (r.photo_url ? '<img class="thumb" src="' + esc(r.photo_url) + '">' : '<div class="thumb-empty"></div>') + '</td>' +
-              '<td>' + esc(r.name) + '</td>' +
-              '<td class="staff-muted">' + esc(r.sku) + '</td>' +
-              '<td>' + esc(r.category) + '</td>' +
-              '<td>' + esc(r.quantity) + '</td>' +
-              '<td class="staff-muted">' + (esc(r.supplier) || '—') + '</td>' +
-              '<td class="staff-muted">' + (esc(r.supplier_code) || '—') + '</td>' +
-              '<td class="row-actions">' +
-                '<button class="staff-btn outline edit-btn" data-id="' + r.id + '" style="padding:6px 12px;">Edit</button>' +
-                '<button class="staff-del-btn del-btn" data-id="' + r.id + '">Delete permanently</button>' +
-              '</td>' +
-            '</tr>';
-          }).join('') +
-        '</tbody>' +
-      '</table>';
-    wrap.querySelectorAll('.edit-btn').forEach(function (b) {
-      b.addEventListener('click', function () {
-        const row = lastResults.find(function (r) { return String(r.id) === b.dataset.id; });
-        if (row) openForEdit(row);
-      });
-    });
-    wrap.querySelectorAll('.del-btn').forEach(function (b) {
-      b.addEventListener('click', async function () {
-        if (!confirm('Delete this item permanently? This removes its full stock record and cannot be undone.')) return;
-        await fetch('/api/inv-items?id=' + encodeURIComponent(b.dataset.id), { method: 'DELETE' });
-        if (editingId && String(editingId) === b.dataset.id) resetForm();
-        loadLowStock();
-        runSearch();
-      });
-    });
+    const res = await fetch('/api/inv-items');
+    allItems = await res.json();
+    renderList();
   } catch (e) {
-    statusEl.textContent = 'Could not search — check your connection.';
+    statusEl.textContent = 'Could not load — check your connection.';
     statusEl.style.color = 'var(--staff-danger)';
   }
 }
-document.getElementById('search-btn').addEventListener('click', runSearch);
-document.getElementById('s-query').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
-document.getElementById('s-category').addEventListener('change', runSearch);
-
-const REPORT_CATS = ['Ring','Bracelet','Necklace','Earring','Anklet','Other'];
-const checksWrap = document.getElementById('report-checks');
-REPORT_CATS.forEach(function (cat) {
-  const id = 'rc-' + cat;
-  const label = document.createElement('label');
-  label.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:0.88rem; cursor:pointer;';
-  label.innerHTML = '<input type="checkbox" id="' + id + '" checked style="width:auto;"> ' + cat;
-  checksWrap.appendChild(label);
-});
-
-function selectedReportCats() {
-  return REPORT_CATS.filter(function (cat) { return document.getElementById('rc-' + cat).checked; });
-}
-document.getElementById('report-all-btn').addEventListener('click', function () {
-  REPORT_CATS.forEach(function (cat) { document.getElementById('rc-' + cat).checked = true; });
-});
-document.getElementById('report-none-btn').addEventListener('click', function () {
-  REPORT_CATS.forEach(function (cat) { document.getElementById('rc-' + cat).checked = false; });
-});
-
-async function runReport() {
-  const wrap = document.getElementById('report-results');
-  const cats = selectedReportCats();
-  if (!cats.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Tick at least one category.</p>'; return; }
-  wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Running report...</p>';
-  try {
-    const res = await fetch('/api/inv-report?categories=' + encodeURIComponent(cats.join(',')));
-    const data = await res.json();
-    const summary = data.summary || [];
-    const items = data.items || [];
-    const totalItems = summary.reduce(function (s, r) { return s + r.items; }, 0);
-    const totalQty = summary.reduce(function (s, r) { return s + r.total_qty; }, 0);
-    const totalValue = summary.reduce(function (s, r) { return s + r.total_value; }, 0);
-    const totalLow = summary.reduce(function (s, r) { return s + r.low_count; }, 0);
-
-    const bodyRows = summary.map(function (r) {
-      const catItems = items.filter(function (it) { return it.category === r.category; });
-      const header = '<tr class="cat-row"><td colspan="4">' + esc(r.category) + ' \u2014 ' + r.items + ' item' + (r.items === 1 ? '' : 's') + ', ' + r.total_qty + ' in stock, \u00a3' + Number(r.total_value).toFixed(2) + ' value' + (r.low_count > 0 ? ', ' + r.low_count + ' low' : '') + '</td></tr>';
-      const detail = catItems.length
-        ? catItems.map(function (it) {
-            const low = it.quantity <= (it.reorder_at == null ? 2 : it.reorder_at);
-            return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td' + (low ? ' style="color:var(--staff-danger);"' : '') + '>' + it.quantity + (low ? ' \u26a0' : '') + '</td><td>\u00a3' + Number(it.sell_price || 0).toFixed(2) + '</td></tr>';
-          }).join('')
-        : '<tr><td colspan="4" class="staff-muted">No items in this category.</td></tr>';
-      return header + detail;
-    }).join('');
-
-    const totalRow = summary.length > 1
-      ? '<tr class="cat-row"><td colspan="4">Total \u2014 ' + totalItems + ' item' + (totalItems === 1 ? '' : 's') + ', ' + totalQty + ' in stock, \u00a3' + totalValue.toFixed(2) + ' value' + (totalLow > 0 ? ', ' + totalLow + ' low' : '') + '</td></tr>'
-      : '';
-
-    const tableHtml = '' +
-      '<table class="staff-table">' +
-        '<thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Value</th></tr></thead>' +
-        '<tbody>' + bodyRows + totalRow + '</tbody>' +
-      '</table>';
-    wrap.innerHTML = tableHtml;
-    document.getElementById('print-table-wrap').innerHTML = tableHtml;
-    document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  } catch (e) {
-    wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load the report — check your connection and try again.</p>';
-  }
-}
-document.getElementById('report-run-btn').addEventListener('click', runReport);
-document.getElementById('report-print-btn').addEventListener('click', function () {
-  runReport().then(function () { window.print(); });
-});
-runReport();
 
 loadLowStock();
+loadAll();
 </script>
 </body>
 </html>

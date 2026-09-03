@@ -136,6 +136,13 @@ async function logStockExpenditure(env, { inventoryId, qtyDelta, costPerItem, na
 const CATEGORY_CAPS = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
 
 async function handleInvItems(request, env, url) {
+  if (request.method === "GET") {
+    const { results } = await env.DB.prepare(
+      `SELECT id, sku, name, category, quantity, shop_qty, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position
+       FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, name ASC`
+    ).all();
+    return json(results);
+  }
   if (request.method === "POST") {
     const b = await request.json();
     const missing = [];

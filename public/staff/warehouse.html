@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Warehouse — Evelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/staff-theme.css" />
+<script src="../assets/js/staff-common.js"></script>
+<style>
+  .inv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .inv-grid .full { grid-column: 1 / -1; }
+  .search-row { display: flex; gap: 10px; align-items: end; margin-bottom: 16px; flex-wrap: wrap; }
+  .search-row .staff-field { margin-bottom: 0; flex: 1; min-width: 160px; }
+  .photo-row { display: flex; align-items: center; gap: 10px; }
+  .photo-preview { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; border: 1px solid var(--staff-line); }
+  .photo-empty { width: 60px; height: 60px; border-radius: 6px; border: 1px dashed var(--staff-line); display: flex; align-items: center; justify-content: center; color: var(--staff-white-dim); font-size: 1.2rem; }
+  .thumb { width: 40px; height: 40px; border-radius: 5px; object-fit: cover; display: block; }
+  .thumb-empty { width: 40px; height: 40px; border-radius: 5px; background: rgba(255,255,255,0.04); }
+  #status-msg, #search-status, #transfer-msg { font-size: 0.85rem; min-height: 20px; margin: 8px 0; }
+  .row-actions button { margin-right: 6px; }
+  .section-toggle {
+    background: none; border: none; cursor: pointer; padding: 0; margin: 0;
+    font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: var(--staff-white);
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  }
+  .section-toggle .chevron { display: inline-block; transition: transform 0.2s ease; font-size: 0.8rem; color: var(--staff-gold); }
+  .section-toggle.open .chevron { transform: rotate(90deg); }
+  .collapsible-content { display: none; margin-top: 14px; }
+  .collapsible-content.open { display: block; }
+  @media print {
+    body.staff-body > *:not(#print-area) { display: none !important; }
+    #print-area { display: block !important; padding: 0; color: #000; background: #fff; }
+    #print-area table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+    #print-area table th, #print-area table td { border: 1px solid #999; padding: 6px 8px; color: #000; font-size: 0.85rem; }
+    #print-area th { background: #eee; }
+    #print-area .cat-row td { background: #f5f5f5; font-weight: 700; }
+  }
+  .print-only { display: none; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal-backdrop.open { display: flex; }
+  .modal-box { background: var(--staff-panel, #1c1c1c); border: 1px solid var(--staff-line); border-radius: 10px; padding: 24px; max-width: 380px; width: 90%; }
+  .modal-box h4 { font-family: 'Cormorant Garamond', serif; margin: 0 0 6px; color: var(--staff-gold); }
+</style>
+</head>
+<body class="staff-body">
+
+<header class="staff-header">
+  <div class="staff-brand">
+    <div class="staff-logo-box"><img src="../assets/images/evelle-logo.png" alt="Evelle"></div>
+    <div>
+      <h1 class="staff-serif">Evelle</h1>
+      <div class="staff-tagline">Warehouse · The beauty of being you</div>
+    </div>
+  </div>
+  <nav class="staff-nav">
+    <a href="inventory.html">Inventory</a>
+    <a href="index.html">&larr; Dashboard</a>
+  </nav>
+</header>
+
+<main class="staff-main">
+  <span class="staff-eyebrow">Staff area</span>
+  <h1 class="staff-serif" style="font-size:clamp(2rem,4vw,2.6rem); margin:0 0 10px;">Warehouse</h1>
+  <p class="staff-muted">The master stock room. Every piece is logged here first — its SKU is created here, and this is where backup stock lives. Nothing here is visible on the shop until you transfer some of it to Inventory.</p>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <h3 class="staff-serif" id="form-title" style="margin-top:0;">Add stock</h3>
+    <div class="inv-grid">
+      <div class="staff-field"><label>Category</label>
+        <select id="f-category">
+          <option value="">— select —</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+        </select>
+      </div>
+      <div class="staff-field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. Gold hoop earrings" /></div>
+      <div class="staff-field full">
+        <label>Description <span class="staff-muted">(optional here — required before it goes live in the shop)</span></label>
+        <textarea id="f-description" rows="3" placeholder="Material, plating, karat, tarnish-resistance — whatever describes the piece."></textarea>
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <select id="f-material-picker" style="flex:1;">
+            <option value="">+ Add material...</option>
+            <option value="316L Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant">316L Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
+            <option value="316L Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant">316L Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
+            <option value="316L Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant">316L Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant</option>
+            <option value="304 Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant">304 Stainless Steel, 18K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
+            <option value="304 Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant">304 Stainless Steel, 14K PVD Gold Plated, Tarnish Resistant, Water Resistant</option>
+            <option value="304 Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant">304 Stainless Steel, Uncoated, Tarnish Resistant, Water Resistant</option>
+          </select>
+          <select id="f-stone-picker" style="flex:1;">
+            <option value="">+ Add stone...</option>
+            <option value="Moissanite">Moissanite</option>
+            <option value="Rhinestone">Rhinestone</option>
+            <option value="Cubic Zirconia">Cubic Zirconia</option>
+            <option value="Gemstone">Gemstone</option>
+          </select>
+        </div>
+      </div>
+      <div class="staff-field"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. Everful Wholesale" /></div>
+      <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
+      <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
+      <div class="staff-field"><label>Reorder at</label><input type="number" min="0" id="f-reorder" value="2" /></div>
+      <div class="staff-field full"><label>Paid in</label>
+        <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+          <select id="f-currency" style="max-width:150px;">
+            <option value="GBP">£ Pounds</option>
+            <option value="USD">$ Dollars</option>
+          </select>
+          <div id="usd-fields" style="display:none; gap:10px; align-items:end; flex-wrap:wrap;">
+            <div class="staff-field" style="margin-bottom:0;"><label>Amount ($)</label><input type="number" min="0" step="0.01" id="f-usd-amount" style="width:110px;" /></div>
+            <div class="staff-field" style="margin-bottom:0;"><label>Rate (£ per $1)</label><input type="number" min="0" step="0.0001" id="f-usd-rate" value="0.79" style="width:110px;" /></div>
+          </div>
+        </div>
+      </div>
+      <div class="staff-field"><label>Cost per item (£)</label><input type="number" min="0" step="0.01" id="f-cost" /></div>
+      <div class="staff-field"><label>Sell price (£) <span class="staff-muted">(optional here)</span></label><input type="number" min="0" step="0.01" id="f-price" /></div>
+      <div class="staff-field full"><label>Photo <span class="staff-muted">(optional here)</span></label>
+        <div class="photo-row">
+          <div id="photo-preview" class="photo-empty">＋</div>
+          <input type="file" id="f-photo-file" accept="image/*" style="display:none;" />
+          <button type="button" class="staff-btn outline" id="photo-btn">Upload</button>
+          <button type="button" class="staff-btn outline" id="photo-clear-btn" style="display:none;">Remove</button>
+        </div>
+      </div>
+    </div>
+    <div id="status-msg" style="margin-top:14px;"></div>
+    <div style="margin-top:10px; display:flex; gap:10px;">
+      <button class="staff-btn" id="save-btn">Add to Warehouse</button>
+      <button class="staff-btn outline" id="cancel-edit-btn" style="display:none;">Cancel edit</button>
+    </div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe); margin-bottom: 30px;">
+    <button type="button" id="report-toggle" class="section-toggle">
+      <span class="chevron">▸</span> Stock report
+    </button>
+    <div id="report-content" class="collapsible-content">
+      <p class="staff-muted" style="font-size:0.85rem;">Pick one, several, or all — see total remaining warehouse stock and value at a glance.</p>
+      <div id="report-checks" style="display:flex; gap:16px; flex-wrap:wrap; margin:14px 0;"></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="staff-btn outline" id="report-all-btn" type="button" style="padding:8px 16px;">Select all</button>
+        <button class="staff-btn outline" id="report-none-btn" type="button" style="padding:8px 16px;">Select none</button>
+        <button class="staff-btn" id="report-run-btn" type="button">Run report</button>
+        <button class="staff-btn outline" id="report-print-btn" type="button" style="padding:8px 16px;">Print report</button>
+      </div>
+      <div id="report-results" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <div class="staff-card" style="border-top: 2px solid var(--staff-taupe);">
+    <button type="button" id="search-toggle" class="section-toggle open">
+      <span class="chevron">▸</span> Find an item in the database
+    </button>
+    <div id="search-content" class="collapsible-content open">
+      <div class="search-row">
+        <div class="staff-field"><label>Category</label>
+          <select id="s-category">
+            <option value="">All categories</option>
+            <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+          </select>
+        </div>
+        <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
+        <button class="staff-btn" id="search-btn">Search</button>
+      </div>
+      <div id="search-status">Pick a category or type a search to see results.</div>
+      <div id="search-results"></div>
+    </div>
+  </div>
+</main>
+
+<div class="modal-backdrop" id="transfer-modal">
+  <div class="modal-box">
+    <h4>Transfer to Inventory</h4>
+    <p class="staff-muted" id="transfer-item-label" style="font-size:0.85rem; margin-top:0;"></p>
+    <div class="staff-field"><label>Quantity to move</label><input type="number" min="1" id="transfer-qty" value="1" /></div>
+    <div id="transfer-msg"></div>
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="staff-btn" id="transfer-confirm-btn">Transfer</button>
+      <button class="staff-btn outline" id="transfer-cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="print-area" class="print-only">
+  <h2 style="font-family:'Cormorant Garamond',serif; margin:0 0 4px;">Evelle — Warehouse Stock Report</h2>
+  <p id="print-date" style="margin:0 0 16px; font-size:0.9rem;"></p>
+  <div id="print-table-wrap"></div>
+</div>
+
+<script>
+let editingId = null;
+let pendingPhotoFile = null;
+let currentPhotoUrl = '';
+let lastResults = [];
+let transferTargetId = null;
+
+async function fetchWithTimeout(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try { return await fetch(url, Object.assign({}, options, { signal: controller.signal })); }
+  finally { clearTimeout(timer); }
+}
+
+function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function wireToggle(btnId, contentId) {
+  const btn = document.getElementById(btnId);
+  const content = document.getElementById(contentId);
+  btn.addEventListener('click', () => {
+    const isOpen = content.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
+  });
+}
+wireToggle('report-toggle', 'report-content');
+wireToggle('search-toggle', 'search-content');
+
+function setPhotoPreview(url) {
+  currentPhotoUrl = url || '';
+  const box = document.getElementById('photo-preview');
+  const clearBtn = document.getElementById('photo-clear-btn');
+  if (currentPhotoUrl) {
+    box.outerHTML = '<img id="photo-preview" class="photo-preview" src="' + currentPhotoUrl + '" />';
+    clearBtn.style.display = '';
+  } else {
+    box.outerHTML = '<div id="photo-preview" class="photo-empty">＋</div>';
+    clearBtn.style.display = 'none';
+  }
+}
+document.getElementById('photo-btn').addEventListener('click', () => document.getElementById('f-photo-file').click());
+document.getElementById('photo-clear-btn').addEventListener('click', () => { pendingPhotoFile = null; setPhotoPreview(''); invTracker.markDirty(); });
+document.getElementById('f-photo-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingPhotoFile = file;
+  setPhotoPreview(URL.createObjectURL(file));
+});
+
+const savedRate = localStorage.getItem('inv-usd-rate');
+if (savedRate) document.getElementById('f-usd-rate').value = savedRate;
+function convertUsd() {
+  const usd = parseFloat(document.getElementById('f-usd-amount').value);
+  const rate = parseFloat(document.getElementById('f-usd-rate').value);
+  if (usd && rate) {
+    document.getElementById('f-cost').value = (usd * rate).toFixed(2);
+    localStorage.setItem('inv-usd-rate', rate);
+  }
+}
+document.getElementById('f-currency').addEventListener('change', () => {
+  const isUsd = document.getElementById('f-currency').value === 'USD';
+  document.getElementById('usd-fields').style.display = isUsd ? 'flex' : 'none';
+  if (isUsd) convertUsd();
+});
+document.getElementById('f-usd-amount').addEventListener('input', convertUsd);
+document.getElementById('f-usd-rate').addEventListener('input', convertUsd);
+
+function resetForm() {
+  editingId = null;
+  pendingPhotoFile = null;
+  setPhotoPreview('');
+  ['f-category','f-name','f-description','f-supplier','f-supplier-code'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-photo-file').value = '';
+  document.getElementById('f-quantity').value = 0;
+  document.getElementById('f-reorder').value = 2;
+  document.getElementById('f-cost').value = '';
+  document.getElementById('f-price').value = '';
+  document.getElementById('f-currency').value = 'GBP';
+  document.getElementById('usd-fields').style.display = 'none';
+  document.getElementById('f-usd-amount').value = '';
+  document.getElementById('form-title').textContent = 'Add stock';
+  document.getElementById('save-btn').textContent = 'Add to Warehouse';
+  document.getElementById('cancel-edit-btn').style.display = 'none';
+}
+
+function openForEdit(row) {
+  editingId = row.id;
+  document.getElementById('f-category').value = row.category || '';
+  document.getElementById('f-name').value = row.name || '';
+  document.getElementById('f-description').value = row.notes || '';
+  document.getElementById('f-supplier').value = row.supplier || '';
+  document.getElementById('f-supplier-code').value = row.supplier_code || '';
+  document.getElementById('f-quantity').value = row.quantity || 0;
+  document.getElementById('f-reorder').value = (row.reorder_at === null || row.reorder_at === undefined) ? 2 : row.reorder_at;
+  document.getElementById('f-cost').value = row.cost_per_item || '';
+  document.getElementById('f-price').value = row.sell_price || '';
+  document.getElementById('f-currency').value = 'GBP';
+  document.getElementById('usd-fields').style.display = 'none';
+  setPhotoPreview(row.photo_url || '');
+  document.getElementById('form-title').textContent = 'Editing ' + row.sku;
+  document.getElementById('save-btn').textContent = 'Save changes';
+  document.getElementById('cancel-edit-btn').style.display = '';
+  document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function appendToDescription(text) {
+  const el = document.getElementById('f-description');
+  el.value = el.value.trim() ? el.value.trim() + ', ' + text : text;
+}
+document.getElementById('f-material-picker').addEventListener('change', function () {
+  if (this.value) { appendToDescription(this.value); this.value = ''; }
+});
+document.getElementById('f-stone-picker').addEventListener('change', function () {
+  if (this.value) { appendToDescription(this.value); this.value = ''; }
+});
+document.getElementById('cancel-edit-btn').addEventListener('click', function () { resetForm(); invTracker.reset(); });
+
+const invTracker = staffTrackUnsaved(
+  ['f-category','f-name','f-description','f-supplier','f-supplier-code','f-quantity','f-reorder','f-currency','f-usd-amount','f-usd-rate','f-cost','f-price','f-photo-file','f-material-picker','f-stone-picker'].map(id => document.getElementById(id)),
+  document.getElementById('save-btn')
+);
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const msgEl = document.getElementById('status-msg');
+  const category = document.getElementById('f-category').value;
+  const name = document.getElementById('f-name').value.trim();
+  const supplier = document.getElementById('f-supplier').value.trim();
+  const cost = document.getElementById('f-cost').value;
+  msgEl.style.color = '';
+  if (!category || !name) { msgEl.textContent = 'Category and name are required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  if (!editingId) {
+    const missing = [];
+    if (!supplier) missing.push('supplier');
+    if (!cost) missing.push('cost per item');
+    if (missing.length) {
+      msgEl.textContent = 'Missing: ' + missing.join(', ') + '. These are needed to log the item into the Warehouse.';
+      msgEl.style.color = 'var(--staff-danger)';
+      return;
+    }
+  }
+
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = true;
+  try {
+    let photoUrl = currentPhotoUrl;
+    if (pendingPhotoFile) {
+      msgEl.textContent = 'Uploading photo...';
+      const fd = new FormData();
+      fd.append('file', pendingPhotoFile);
+      const upRes = await fetchWithTimeout('/api/upload-image', { method: 'POST', body: fd }, 25000);
+      const upData = await upRes.json();
+      if (!upRes.ok) { msgEl.textContent = upData.error || 'Photo upload failed.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+      photoUrl = upData.url;
+    }
+
+    const payload = {
+      category: category, name: name,
+      description: document.getElementById('f-description').value.trim(),
+      supplier: supplier,
+      supplier_code: document.getElementById('f-supplier-code').value.trim(),
+      quantity: Number(document.getElementById('f-quantity').value) || 0,
+      reorder_at: Number(document.getElementById('f-reorder').value) || 0,
+      cost_per_item: Number(document.getElementById('f-cost').value) || 0,
+      sell_price: Number(document.getElementById('f-price').value) || 0,
+      photo_url: photoUrl
+    };
+
+    msgEl.textContent = 'Saving...';
+    let res, data;
+    if (editingId) {
+      res = await fetchWithTimeout('/api/inv-items?id=' + encodeURIComponent(editingId), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      }, 15000);
+      data = await res.json();
+      if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong saving that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+      msgEl.style.color = 'var(--staff-ok)';
+      msgEl.textContent = 'Saved.';
+      invTracker.markSaved();
+    } else {
+      res = await fetchWithTimeout('/api/inv-items', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      }, 15000);
+      data = await res.json();
+      if (!res.ok) { msgEl.textContent = data.error || 'Something went wrong adding that.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+      msgEl.style.color = 'var(--staff-ok)';
+      msgEl.textContent = 'Added to Warehouse — SKU ' + data.sku + '. Transfer some to Inventory when it\'s ready for the shop.';
+      invTracker.markSaved();
+    }
+    resetForm();
+    runSearch();
+  } catch (err) {
+    msgEl.textContent = err.name === 'AbortError' ? 'That timed out — try again.' : 'Something went wrong: ' + err.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+function openTransferModal(row) {
+  transferTargetId = row.id;
+  document.getElementById('transfer-item-label').textContent = row.name + ' (' + row.sku + ') — ' + row.quantity + ' in Warehouse';
+  document.getElementById('transfer-qty').value = 1;
+  document.getElementById('transfer-qty').max = row.quantity;
+  document.getElementById('transfer-msg').textContent = '';
+  document.getElementById('transfer-modal').classList.add('open');
+}
+document.getElementById('transfer-cancel-btn').addEventListener('click', () => document.getElementById('transfer-modal').classList.remove('open'));
+document.getElementById('transfer-confirm-btn').addEventListener('click', async () => {
+  const qty = Number(document.getElementById('transfer-qty').value) || 0;
+  const msgEl = document.getElementById('transfer-msg');
+  if (qty <= 0) { msgEl.textContent = 'Enter a quantity greater than 0.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  msgEl.textContent = 'Transferring...';
+  msgEl.style.color = '';
+  try {
+    const res = await fetchWithTimeout('/api/inv-transfer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: transferTargetId, qty: qty })
+    }, 15000);
+    const data = await res.json();
+    if (!res.ok) { msgEl.textContent = data.error || 'Transfer failed.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    document.getElementById('transfer-modal').classList.remove('open');
+    runSearch();
+  } catch (err) {
+    msgEl.textContent = 'Something went wrong: ' + err.message;
+    msgEl.style.color = 'var(--staff-danger)';
+  }
+});
+
+async function runSearch() {
+  const category = document.getElementById('s-category').value;
+  const q = document.getElementById('s-query').value.trim();
+  const statusEl = document.getElementById('search-status');
+  const wrap = document.getElementById('search-results');
+  if (!category && !q) {
+    wrap.innerHTML = '';
+    statusEl.textContent = 'Pick a category or type a search to see results.';
+    statusEl.style.color = '';
+    return;
+  }
+  statusEl.textContent = 'Searching...';
+  statusEl.style.color = '';
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (q) params.set('q', q);
+  try {
+    const res = await fetch('/api/inv-search?' + params.toString());
+    const rows = await res.json();
+    lastResults = rows;
+    if (!rows.length) { wrap.innerHTML = ''; statusEl.textContent = 'No items match.'; return; }
+    statusEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's') + '.';
+    wrap.innerHTML = '' +
+      '<table class="staff-table">' +
+        '<thead><tr><th>Photo</th><th>Name</th><th>SKU</th><th>Category</th><th>Warehouse</th><th>Shop</th><th>Supplier</th><th>Code</th><th></th></tr></thead>' +
+        '<tbody>' +
+          rows.map(function (r) {
+            return '<tr data-id="' + r.id + '">' +
+              '<td>' + (r.photo_url ? '<img class="thumb" src="' + esc(r.photo_url) + '">' : '<div class="thumb-empty"></div>') + '</td>' +
+              '<td>' + esc(r.name) + '</td>' +
+              '<td class="staff-muted">' + esc(r.sku) + '</td>' +
+              '<td>' + esc(r.category) + '</td>' +
+              '<td>' + esc(r.quantity) + '</td>' +
+              '<td class="staff-muted">' + esc(r.shop_qty) + (r.shop_position === null ? ' <span class="staff-muted">(not live)</span>' : '') + '</td>' +
+              '<td class="staff-muted">' + (esc(r.supplier) || '—') + '</td>' +
+              '<td class="staff-muted">' + (esc(r.supplier_code) || '—') + '</td>' +
+              '<td class="row-actions">' +
+                '<button class="staff-btn outline transfer-btn" data-id="' + r.id + '" style="padding:6px 12px;">Transfer</button>' +
+                '<button class="staff-btn outline edit-btn" data-id="' + r.id + '" style="padding:6px 12px;">Edit</button>' +
+                '<button class="staff-del-btn del-btn" data-id="' + r.id + '">Delete permanently</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('') +
+        '</tbody>' +
+      '</table>';
+    wrap.querySelectorAll('.edit-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const row = lastResults.find(function (r) { return String(r.id) === b.dataset.id; });
+        if (row) openForEdit(row);
+      });
+    });
+    wrap.querySelectorAll('.transfer-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const row = lastResults.find(function (r) { return String(r.id) === b.dataset.id; });
+        if (!row) return;
+        if (!row.quantity) { alert('Nothing in Warehouse for this item to transfer.'); return; }
+        openTransferModal(row);
+      });
+    });
+    wrap.querySelectorAll('.del-btn').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        if (!confirm('Delete this item permanently? This removes its full stock record and cannot be undone.')) return;
+        await fetch('/api/inv-items?id=' + encodeURIComponent(b.dataset.id), { method: 'DELETE' });
+        if (editingId && String(editingId) === b.dataset.id) resetForm();
+        runSearch();
+      });
+    });
+  } catch (e) {
+    statusEl.textContent = 'Could not search — check your connection.';
+    statusEl.style.color = 'var(--staff-danger)';
+  }
+}
+document.getElementById('search-btn').addEventListener('click', runSearch);
+document.getElementById('s-query').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
+document.getElementById('s-category').addEventListener('change', runSearch);
+
+const REPORT_CATS = ['Ring','Bracelet','Necklace','Earring','Anklet','Other'];
+const checksWrap = document.getElementById('report-checks');
+REPORT_CATS.forEach(function (cat) {
+  const id = 'rc-' + cat;
+  const label = document.createElement('label');
+  label.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:0.88rem; cursor:pointer;';
+  label.innerHTML = '<input type="checkbox" id="' + id + '" checked style="width:auto;"> ' + cat;
+  checksWrap.appendChild(label);
+});
+
+function selectedReportCats() {
+  return REPORT_CATS.filter(function (cat) { return document.getElementById('rc-' + cat).checked; });
+}
+document.getElementById('report-all-btn').addEventListener('click', function () {
+  REPORT_CATS.forEach(function (cat) { document.getElementById('rc-' + cat).checked = true; });
+});
+document.getElementById('report-none-btn').addEventListener('click', function () {
+  REPORT_CATS.forEach(function (cat) { document.getElementById('rc-' + cat).checked = false; });
+});
+
+async function runReport() {
+  const wrap = document.getElementById('report-results');
+  const cats = selectedReportCats();
+  if (!cats.length) { wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Tick at least one category.</p>'; return; }
+  wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Running report...</p>';
+  try {
+    const res = await fetch('/api/inv-report?categories=' + encodeURIComponent(cats.join(',')));
+    const data = await res.json();
+    const summary = data.summary || [];
+    const items = data.items || [];
+    const totalItems = summary.reduce(function (s, r) { return s + r.items; }, 0);
+    const totalQty = summary.reduce(function (s, r) { return s + r.total_qty; }, 0);
+    const totalValue = summary.reduce(function (s, r) { return s + r.total_value; }, 0);
+
+    const bodyRows = summary.map(function (r) {
+      const catItems = items.filter(function (it) { return it.category === r.category; });
+      const header = '<tr class="cat-row"><td colspan="4">' + esc(r.category) + ' \u2014 ' + r.items + ' item' + (r.items === 1 ? '' : 's') + ', ' + r.total_qty + ' in warehouse, \u00a3' + Number(r.total_value).toFixed(2) + ' value' + '</td></tr>';
+      const detail = catItems.length
+        ? catItems.map(function (it) {
+            return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>\u00a3' + Number(it.sell_price || 0).toFixed(2) + '</td></tr>';
+          }).join('')
+        : '<tr><td colspan="4" class="staff-muted">No items in this category.</td></tr>';
+      return header + detail;
+    }).join('');
+
+    const totalRow = summary.length > 1
+      ? '<tr class="cat-row"><td colspan="4">Total \u2014 ' + totalItems + ' item' + (totalItems === 1 ? '' : 's') + ', ' + totalQty + ' in warehouse, \u00a3' + totalValue.toFixed(2) + ' value' + '</td></tr>'
+      : '';
+
+    const tableHtml = '' +
+      '<table class="staff-table">' +
+        '<thead><tr><th>Item</th><th>SKU</th><th>Warehouse Qty</th><th>Sell Price</th></tr></thead>' +
+        '<tbody>' + bodyRows + totalRow + '</tbody>' +
+      '</table>';
+    wrap.innerHTML = tableHtml;
+    document.getElementById('print-table-wrap').innerHTML = tableHtml;
+    document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch (e) {
+    wrap.innerHTML = '<p class="staff-muted" style="font-size:0.85rem;">Could not load the report — check your connection and try again.</p>';
+  }
+}
+document.getElementById('report-run-btn').addEventListener('click', runReport);
+document.getElementById('report-print-btn').addEventListener('click', function () {
+  runReport().then(function () { window.print(); });
+});
+runReport();
+</script>
+</body>
+</html>
