@@ -54,7 +54,7 @@
         <textarea id="c-message" rows="5" required></textarea>
       </div>
       <button type="submit" class="btn btn-primary" style="width:100%;">Send Message</button>
-      <p class="muted" style="margin-top:14px; font-size:0.85rem;" id="form-note">This form isn't wired to email delivery yet — placeholder for now.</p>
+      <p class="muted" style="margin-top:14px; font-size:0.85rem;" id="form-note">Or email us directly at <a href="mailto:lisa@evellejewellery.co.uk">lisa@evellejewellery.co.uk</a>.</p>
     </form>
   </div>
 </section>
@@ -91,9 +91,35 @@
 <script src="assets/js/main.js"></script>
 <script src="assets/js/cart.js"></script>
 <script>
-document.getElementById('contact-form').addEventListener('submit', (e) => {
+document.getElementById('contact-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  document.getElementById('form-note').textContent = "Thanks — this is a placeholder confirmation. Real email delivery not yet connected.";
+  const btn = e.target.querySelector('button[type="submit"]');
+  const note = document.getElementById('form-note');
+  const name = document.getElementById('c-name').value;
+  const email = document.getElementById('c-email').value;
+  const message = document.getElementById('c-message').value;
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/contact-submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, message }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      e.target.reset();
+      note.textContent = "Thanks — your message has been sent. We'll get back to you soon.";
+      btn.textContent = 'Send Message';
+      btn.disabled = false;
+      return;
+    }
+    note.textContent = (data.message || "Something went wrong sending your message.") + " You can also email us directly at lisa@evellejewellery.co.uk.";
+  } catch (err) {
+    note.textContent = "Something went wrong sending your message. You can also email us directly at lisa@evellejewellery.co.uk.";
+  }
+  btn.textContent = 'Send Message';
+  btn.disabled = false;
 });
 </script>
 </body>

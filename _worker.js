@@ -660,6 +660,149 @@ async function handleContactContent(request, env) {
   }
   return json({ error: "Method not allowed" }, 405);
 }
+
+// ===== Contact form email (SMTP to Zoho) =====
+// Sends every contact-form submission straight into Lisa's Zoho inbox via
+// raw SMTP over Cloudflare's TCP socket API (cloudflare:sockets) — no
+// third-party email service, no extra account. Credentials come from
+// env.ZOHO_SMTP_USER / env.ZOHO_SMTP_PASS, set with `wrangler secret put`
+// (ZOHO_SMTP_USER is the full mailbox address, ZOHO_SMTP_PASS is a Zoho
+// app-specific password, not the account login password). Until both are
+// set, contactEmailConfigured() is false and the endpoint below returns a
+// clean "not live yet" response instead of attempting to connect.
+function contactEmailConfigured(env) {
+  return !!(env.ZOHO_SMTP_USER && env.ZOHO_SMTP_PASS);
+}
+
+// Reads one full SMTP response, which may be a single line ("250 OK") or
+// several continuation lines ("250-..." ... "250 OK") — only a line with a
+// SPACE after the 3-digit code ends the response, a dash means more lines
+// follow. Returns the numeric code of that final line plus the raw text,
+// so callers can check e.g. res.code === 250.
+async function readSmtpResponse(reader) {
+  let buf = "";
+  const decoder = new TextDecoder();
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\r\n").filter(Boolean);
+    const last = lines[lines.length - 1];
+    if (last && /^\d{3} /.test(last)) {
+      return { code: Number(last.slice(0, 3)), text: buf };
+    }
+  }
+  return { code: 0, text: buf };
+}
+
+// Minimal SMTP client: connect → STARTTLS → AUTH LOGIN → MAIL/RCPT/DATA →
+// QUIT. Deliberately hand-rolled rather than an npm SMTP library, since
+// this project has no build step / bundler — everything lives in this one
+// file, same as the rest of the Worker.
+async function sendSmtpMail(env, { to, replyTo, subject, text }) {
+  const { connect } = await import("cloudflare:sockets");
+  const socket = connect(
+    { hostname: "smtp.zoho.eu", port: 587 },
+    { secureTransport: "starttls", allowHalfOpen: false }
+  );
+
+  let writer = socket.writable.getWriter();
+  let reader = socket.readable.getReader();
+  const enc = new TextEncoder();
+  const send = async (line) => { await writer.write(enc.encode(line + "\r\n")); };
+
+  let res = await readSmtpResponse(reader);
+  if (res.code !== 220) throw new Error("SMTP greeting failed: " + res.text);
+
+  await send("EHLO evellejewellery.co.uk");
+  res = await readSmtpResponse(reader);
+  if (res.code !== 250) throw new Error("EHLO failed: " + res.text);
+
+  await send("STARTTLS");
+  res = await readSmtpResponse(reader);
+  if (res.code !== 220) throw new Error("STARTTLS failed: " + res.text);
+
+  // Hand the connection to TLS — old plaintext reader/writer are done.
+  writer.releaseLock();
+  reader.releaseLock();
+  const tlsSocket = socket.startTls();
+  writer = tlsSocket.writable.getWriter();
+  reader = tlsSocket.readable.getReader();
+
+  await send("EHLO evellejewellery.co.uk");
+  res = await readSmtpResponse(reader);
+  if (res.code !== 250) throw new Error("EHLO (TLS) failed: " + res.text);
+
+  await send("AUTH LOGIN");
+  res = await readSmtpResponse(reader);
+  if (res.code !== 334) throw new Error("AUTH LOGIN not offered: " + res.text);
+
+  await send(btoa(env.ZOHO_SMTP_USER));
+  res = await readSmtpResponse(reader);
+  if (res.code !== 334) throw new Error("AUTH username rejected: " + res.text);
+
+  await send(btoa(env.ZOHO_SMTP_PASS));
+  res = await readSmtpResponse(reader);
+  if (res.code !== 235) throw new Error("AUTH failed — check ZOHO_SMTP_USER/ZOHO_SMTP_PASS: " + res.text);
+
+  await send(`MAIL FROM:<${env.ZOHO_SMTP_USER}>`);
+  res = await readSmtpResponse(reader);
+  if (res.code !== 250) throw new Error("MAIL FROM rejected: " + res.text);
+
+  await send(`RCPT TO:<${to}>`);
+  res = await readSmtpResponse(reader);
+  if (res.code !== 250 && res.code !== 251) throw new Error("RCPT TO rejected: " + res.text);
+
+  await send("DATA");
+  res = await readSmtpResponse(reader);
+  if (res.code !== 354) throw new Error("DATA rejected: " + res.text);
+
+  const headers = [
+    `From: Evelle Website <${env.ZOHO_SMTP_USER}>`,
+    `To: <${to}>`,
+    replyTo ? `Reply-To: <${replyTo}>` : null,
+    `Subject: ${subject}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Content-Type: text/plain; charset=UTF-8`,
+  ].filter(Boolean).join("\r\n");
+
+  // Dot-stuff per RFC 5321 — a line starting with '.' in the body would
+  // otherwise be misread as the end-of-message marker.
+  const body = text.replace(/\r\n\./g, "\r\n..").replace(/^\./, "..");
+
+  await send(headers + "\r\n\r\n" + body + "\r\n.");
+  res = await readSmtpResponse(reader);
+  if (res.code !== 250) throw new Error("Message not accepted: " + res.text);
+
+  await send("QUIT");
+  try { await tlsSocket.close(); } catch (e) { /* best-effort */ }
+}
+
+async function handleContactSubmit(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const name = String(b.name || "").trim();
+  const email = String(b.email || "").trim();
+  const message = String(b.message || "").trim();
+  if (!name || !email || !message) {
+    return json({ error: "missing_fields", message: "Name, email, and message are all required." }, 400);
+  }
+  if (!contactEmailConfigured(env)) {
+    return json({ error: "email_not_live", message: "Sorry — our contact form isn't switched on yet. Please email us directly at lisa@evellejewellery.co.uk instead." }, 503);
+  }
+  try {
+    await sendSmtpMail(env, {
+      to: "lisa@evellejewellery.co.uk",
+      replyTo: email,
+      subject: "New enquiry from evellejewellery.co.uk — " + name,
+      text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
+    });
+    return json({ success: true });
+  } catch (e) {
+    return json({ error: "send_failed", message: "Something went wrong sending your message — please try again or email us directly." }, 502);
+  }
+}
+
 async function getCareContent(env) {
   const { results } = await env.DB.prepare(`SELECT * FROM care_content WHERE id = 1`).all();
   return results[0] || {};
@@ -1220,6 +1363,11 @@ export default {
     }
     if (path === "/api/paypal/capture-order" && request.method === "POST") {
       return handlePaypalCaptureOrder(request, env);
+    }
+
+    // Contact form is customer-facing — no staff session exists on the public site
+    if (path === "/api/contact-submit" && request.method === "POST") {
+      return handleContactSubmit(request, env);
     }
 
     // Uploaded images are served publicly straight from R2
