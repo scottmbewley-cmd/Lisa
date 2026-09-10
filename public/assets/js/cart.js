@@ -23,17 +23,24 @@ function writeCart(items) {
 function cartCount(items) { return (items || readCart()).reduce((sum, i) => sum + i.qty, 0); }
 function cartTotal(items) { return (items || readCart()).reduce((sum, i) => sum + i.price * i.qty, 0); }
 
+// A cart line's identity is id+size, not just id — two different ring
+// sizes of the same SKU are separate lines with separate quantities, never
+// merged. lineKey() is used everywhere a line needs to be found/matched;
+// non-ring items simply have size undefined, which still forms a stable key.
+function lineKey(id, size) { return String(id) + '::' + (size || ''); }
+
 function addToCart(product, qty) {
   qty = qty || 1;
   const items = readCart();
-  const existing = items.find(i => String(i.id) === String(product.id));
+  const key = lineKey(product.id, product.size);
+  const existing = items.find(i => lineKey(i.id, i.size) === key);
   const cap = product.maxQty && product.maxQty > 0 ? product.maxQty : null;
   if (existing) {
     existing.qty += qty;
     if (cap) existing.qty = Math.min(existing.qty, cap);
   } else {
     items.push({
-      id: product.id, sku: product.sku, name: product.name,
+      id: product.id, sku: product.sku, name: product.name, size: product.size || null,
       price: product.price, image_url: product.image_url,
       qty: cap ? Math.min(qty, cap) : qty, maxQty: cap
     });
@@ -41,17 +48,17 @@ function addToCart(product, qty) {
   writeCart(items);
 }
 
-function updateQty(id, qty) {
+function updateQty(key, qty) {
   let items = readCart();
-  const item = items.find(i => String(i.id) === String(id));
+  const item = items.find(i => lineKey(i.id, i.size) === key);
   if (!item) return;
-  if (qty < 1) { items = items.filter(i => String(i.id) !== String(id)); }
+  if (qty < 1) { items = items.filter(i => lineKey(i.id, i.size) !== key); }
   else { item.qty = item.maxQty ? Math.min(qty, item.maxQty) : qty; }
   writeCart(items);
 }
 
-function removeFromCart(id) {
-  writeCart(readCart().filter(i => String(i.id) !== String(id)));
+function removeFromCart(key) {
+  writeCart(readCart().filter(i => lineKey(i.id, i.size) !== key));
 }
 
 function clearCart() {
@@ -78,22 +85,25 @@ function renderDrawer() {
     return;
   }
 
-  body.innerHTML = items.map(item => `
-    <div class="cart-line" data-id="${esc(item.id)}">
+  body.innerHTML = items.map(item => {
+    const key = lineKey(item.id, item.size);
+    return `
+    <div class="cart-line" data-id="${esc(key)}">
       ${item.image_url ? `<img class="cart-line-img" src="${esc(item.image_url)}" alt="${esc(item.name)}">` : '<div class="cart-line-img"></div>'}
       <div class="cart-line-info">
         <span class="n">${esc(item.name)}</span>
-        <span class="s">SKU ${esc(item.sku)}</span>
+        <span class="s">SKU ${esc(item.sku)}${item.size ? ' &middot; Size ' + esc(item.size) : ''}</span>
         <div class="p">£${(item.price * item.qty).toFixed(2)}</div>
         <div class="cart-qty-row">
-          <button class="cart-qty-btn qty-minus" data-id="${esc(item.id)}">&minus;</button>
+          <button class="cart-qty-btn qty-minus" data-id="${esc(key)}">&minus;</button>
           <span class="cart-qty-val">${item.qty}</span>
-          <button class="cart-qty-btn qty-plus" data-id="${esc(item.id)}"${item.maxQty && item.qty >= item.maxQty ? ' disabled' : ''}>+</button>
-          <button class="cart-remove-btn" data-id="${esc(item.id)}">Remove</button>
+          <button class="cart-qty-btn qty-plus" data-id="${esc(key)}"${item.maxQty && item.qty >= item.maxQty ? ' disabled' : ''}>+</button>
+          <button class="cart-remove-btn" data-id="${esc(key)}">Remove</button>
         </div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const total = cartTotal(items);
   const checkoutBtn = CHECKOUT_ENABLED
@@ -139,11 +149,11 @@ function buildDrawer() {
     const plus = e.target.closest('.qty-plus');
     const remove = e.target.closest('.cart-remove-btn');
     if (minus) {
-      const item = readCart().find(i => String(i.id) === String(minus.dataset.id));
-      if (item) updateQty(item.id, item.qty - 1);
+      const item = readCart().find(i => lineKey(i.id, i.size) === minus.dataset.id);
+      if (item) updateQty(minus.dataset.id, item.qty - 1);
     } else if (plus) {
-      const item = readCart().find(i => String(i.id) === String(plus.dataset.id));
-      if (item) updateQty(item.id, item.qty + 1);
+      const item = readCart().find(i => lineKey(i.id, i.size) === plus.dataset.id);
+      if (item) updateQty(plus.dataset.id, item.qty + 1);
     } else if (remove) {
       removeFromCart(remove.dataset.id);
     }
@@ -170,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id: btn.dataset.id,
       sku: btn.dataset.sku,
       name: btn.dataset.name,
+      size: btn.dataset.size || null,
       price: parseFloat(btn.dataset.price) || 0,
       image_url: btn.dataset.image || '',
       maxQty: parseInt(btn.dataset.quantity, 10) || 0

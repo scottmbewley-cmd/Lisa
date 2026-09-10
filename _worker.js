@@ -46,6 +46,58 @@ function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Ring sizing — ONLY category that gets per-size stock. Every other
+// category keeps a single flat quantity/shop_qty on the inventory row, as
+// before. For a Ring, inventory.quantity and inventory.shop_qty become a
+// MAINTAINED CACHE (the sum across ring_sizes) so every existing read path
+// (search, low-stock, reports, shop listing) keeps working unmodified —
+// they just read a total that happens to be kept in sync elsewhere. The
+// ring_sizes rows are the real source of truth for a ring's stock; nothing
+// but the functions below is allowed to write inventory.quantity/shop_qty
+// for a Ring, or the cache will drift from reality.
+async function getRingSizes(env, inventoryId) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, size, quantity, shop_qty FROM ring_sizes WHERE inventory_id = ?1 ORDER BY id ASC`
+  ).bind(inventoryId).all();
+  return results;
+}
+
+// Replaces the full size breakdown for a ring with exactly what's given —
+// sizes not present in the new list are removed. Existing sizes keep their
+// shop_qty untouched (only warehouse quantity comes from this list) unless
+// removed entirely, in which case any shop_qty they held is lost — the
+// caller (handleInvItems) is responsible for warning if that would strand
+// live shop stock.
+async function setRingSizes(env, inventoryId, sizes) {
+  const clean = (sizes || [])
+    .map(s => ({ size: String(s.size || "").trim(), quantity: Math.max(0, Number(s.quantity) || 0) }))
+    .filter(s => s.size);
+  const existing = await getRingSizes(env, inventoryId);
+  const keepNames = clean.map(s => s.size);
+  const toRemove = existing.filter(e => !keepNames.includes(e.size));
+  const stmts = [];
+  for (const r of toRemove) {
+    stmts.push(env.DB.prepare(`DELETE FROM ring_sizes WHERE id = ?1`).bind(r.id));
+  }
+  for (const s of clean) {
+    stmts.push(env.DB.prepare(
+      `INSERT INTO ring_sizes (inventory_id, size, quantity) VALUES (?1,?2,?3)
+       ON CONFLICT(inventory_id, size) DO UPDATE SET quantity = excluded.quantity`
+    ).bind(inventoryId, s.size, s.quantity));
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  await recomputeRingTotals(env, inventoryId);
+}
+
+async function recomputeRingTotals(env, inventoryId) {
+  const row = await env.DB.prepare(
+    `SELECT COALESCE(SUM(quantity),0) as q, COALESCE(SUM(shop_qty),0) as sq FROM ring_sizes WHERE inventory_id = ?1`
+  ).bind(inventoryId).first();
+  await env.DB.prepare(`UPDATE inventory SET quantity = ?1, shop_qty = ?2 WHERE id = ?3`)
+    .bind(row.q, row.sq, inventoryId).run();
+  return row;
+}
+
 async function handleInvReport(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Bangle","Watch","Finger Bracelet","Other"];
@@ -92,6 +144,9 @@ async function handleInvSearch(request, env, url) {
     ).bind(like);
   }
   const { results } = await stmt.all();
+  for (const row of results) {
+    if (row.category === "Ring") row.sizes = await getRingSizes(env, row.id);
+  }
   return json(results);
 }
 
@@ -141,6 +196,13 @@ async function handleInvItems(request, env, url) {
       `SELECT id, sku, name, category, quantity, shop_qty, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position
        FROM inventory WHERE shop_position IS NOT NULL ORDER BY category ASC, name ASC`
     ).all();
+    // Rings carry their per-size breakdown alongside the aggregate totals
+    // above — the aggregate stays authoritative for every existing view
+    // (low stock, search, reports); sizes[] is additive, for the Ring-aware
+    // UI only.
+    for (const row of results) {
+      if (row.category === "Ring") row.sizes = await getRingSizes(env, row.id);
+    }
     return json(results);
   }
   if (request.method === "POST") {
@@ -153,9 +215,14 @@ async function handleInvItems(request, env, url) {
     if (missing.length) return json({ error: "Missing: " + missing.join(", ") + ". These are needed to log the item into the Warehouse." }, 400);
     if (!CATEGORY_CAPS[b.category]) return json({ error: "Unknown category" }, 400);
 
-    const sku = await nextSku(env);
-    const quantity = Number(b.quantity) || 0;
+    const isRing = b.category === "Ring";
+    // For a Ring, quantity is derived entirely from the sizes[] breakdown —
+    // a flat b.quantity is ignored so the two can never disagree.
+    const quantity = isRing
+      ? (Array.isArray(b.sizes) ? b.sizes.reduce((sum, s) => sum + (Math.max(0, Number(s.quantity) || 0)), 0) : 0)
+      : (Number(b.quantity) || 0);
     const costPerItem = Number(b.cost_per_item) || 0;
+    const sku = await nextSku(env);
     const insertRes = await env.DB.prepare(
       `INSERT INTO inventory (sku, name, category, quantity, shop_qty, cost_per_item, sell_price, reorder_at, supplier, supplier_code, photo_url, notes, shop_position)
        VALUES (?1,?2,?3,?4,0,?5,?6,?7,?8,?9,?10,?11,NULL)`
@@ -163,11 +230,16 @@ async function handleInvItems(request, env, url) {
       sku, b.name, b.category, quantity, costPerItem, b.sell_price || 0,
       b.reorder_at || 2, b.supplier || "", b.supplier_code || "", b.photo_url || "", b.description || ""
     ).run();
+    const newId = insertRes.meta.last_row_id;
+
+    if (isRing && Array.isArray(b.sizes) && b.sizes.length) {
+      await setRingSizes(env, newId, b.sizes);
+    }
 
     // A new item's starting quantity is an increase from 0 — real stock cost,
     // incurred at Warehouse intake (this is when the cash actually left).
     if (quantity > 0 && costPerItem > 0) {
-      await logStockExpenditure(env, { inventoryId: insertRes.meta.last_row_id, qtyDelta: quantity, costPerItem, name: b.name, sku });
+      await logStockExpenditure(env, { inventoryId: newId, qtyDelta: quantity, costPerItem, name: b.name, sku });
     }
 
     return json({ success: true, sku });
@@ -181,26 +253,42 @@ async function handleInvItems(request, env, url) {
     // the increase is measured against what's actually in the database right
     // now, not anything the client claims — a plain re-save with an
     // unchanged quantity, or a decrease, must never log a stock expenditure.
+    // For a Ring, b.sizes[] replaces b.quantity as the trigger — the current
+    // total is read the same way either way, from the aggregate column.
     let current = null;
-    if (b.quantity !== undefined) {
-      current = await env.DB.prepare(`SELECT quantity, cost_per_item, name, sku FROM inventory WHERE id = ?1`).bind(id).first();
+    if (b.quantity !== undefined || b.sizes !== undefined) {
+      current = await env.DB.prepare(`SELECT quantity, cost_per_item, name, sku, category FROM inventory WHERE id = ?1`).bind(id).first();
     }
 
-    const fieldMap = { name: "name", category: "category", quantity: "quantity", cost_per_item: "cost_per_item", sell_price: "sell_price", reorder_at: "reorder_at", supplier: "supplier", supplier_code: "supplier_code", photo_url: "photo_url", description: "notes" };
+    let newQuantity;
+    if (current && current.category === "Ring" && Array.isArray(b.sizes)) {
+      await setRingSizes(env, id, b.sizes);
+      const totals = await env.DB.prepare(`SELECT quantity FROM inventory WHERE id = ?1`).bind(id).first();
+      newQuantity = totals.quantity;
+    }
+
+    const fieldMap = { name: "name", category: "category", cost_per_item: "cost_per_item", sell_price: "sell_price", reorder_at: "reorder_at", supplier: "supplier", supplier_code: "supplier_code", photo_url: "photo_url", description: "notes" };
+    // quantity is only settable directly for non-Ring items — a Ring's
+    // quantity comes solely from setRingSizes() above.
+    if (!(current && current.category === "Ring") && b.quantity !== undefined) fieldMap.quantity = "quantity";
     const sets = []; const vals = [];
     Object.keys(fieldMap).forEach(f => { if (b[f] !== undefined) { sets.push(`${fieldMap[f]} = ?`); vals.push(b[f]); } });
-    if (!sets.length) return json({ error: "no fields to update" }, 400);
-    sets.push(`updated_at = CURRENT_TIMESTAMP`);
-    vals.push(id);
-    await env.DB.prepare(`UPDATE inventory SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    if (sets.length) {
+      sets.push(`updated_at = CURRENT_TIMESTAMP`);
+      vals.push(id);
+      await env.DB.prepare(`UPDATE inventory SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
+    } else if (newQuantity === undefined) {
+      return json({ error: "no fields to update" }, 400);
+    }
 
     if (current) {
-      const qtyDelta = (Number(b.quantity) || 0) - (Number(current.quantity) || 0);
+      const afterQty = newQuantity !== undefined ? newQuantity : (Number(b.quantity) || 0);
+      const qtyDelta = afterQty - (Number(current.quantity) || 0);
       // If cost_per_item is being changed in this same edit, that's what was
       // just paid for the added units; otherwise fall back to the cost
       // already on file. A pure cost correction (no quantity field at all)
       // never reaches this block, since `current` is only read above when
-      // b.quantity is present.
+      // b.quantity or b.sizes is present.
       const costPerItem = b.cost_per_item !== undefined ? (Number(b.cost_per_item) || 0) : (Number(current.cost_per_item) || 0);
       if (qtyDelta > 0 && costPerItem > 0) {
         await logStockExpenditure(env, {
@@ -234,13 +322,34 @@ async function handleInvTransfer(request, env, url) {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const b = await request.json();
   const id = b.id;
-  const qty = Number(b.qty) || 0;
   if (!id) return json({ error: "id required" }, 400);
-  if (qty <= 0) return json({ error: "qty must be greater than 0" }, 400);
 
   const row = await env.DB.prepare(`SELECT id, sku, category, quantity, shop_qty, shop_position, sell_price, photo_url, notes FROM inventory WHERE id = ?1`).bind(id).first();
   if (!row) return json({ error: "Item not found" }, 404);
-  if (Number(row.quantity) < qty) return json({ error: `Only ${row.quantity} in Warehouse for ${row.sku} — can't transfer ${qty}.` }, 400);
+
+  const isRing = row.category === "Ring";
+  // Rings transfer per size: b.sizes = [{ size, qty }, ...]. Everything
+  // else keeps the original flat b.qty. Validate every line BEFORE writing
+  // anything, so a transfer with one bad size fails as a whole rather than
+  // partially applying.
+  let sizeLines = [];
+  let qty = 0;
+  if (isRing) {
+    sizeLines = (Array.isArray(b.sizes) ? b.sizes : []).map(s => ({ size: String(s.size || "").trim(), qty: Number(s.qty) || 0 })).filter(s => s.size && s.qty > 0);
+    if (!sizeLines.length) return json({ error: "Pick at least one size and quantity to transfer." }, 400);
+    qty = sizeLines.reduce((sum, s) => sum + s.qty, 0);
+    const ringSizes = await getRingSizes(env, id);
+    for (const line of sizeLines) {
+      const match = ringSizes.find(r => r.size === line.size);
+      if (!match || Number(match.quantity) < line.qty) {
+        return json({ error: `Only ${match ? match.quantity : 0} of size ${line.size} in Warehouse for ${row.sku} — can't transfer ${line.qty}.` }, 400);
+      }
+    }
+  } else {
+    qty = Number(b.qty) || 0;
+    if (qty <= 0) return json({ error: "qty must be greater than 0" }, 400);
+    if (Number(row.quantity) < qty) return json({ error: `Only ${row.quantity} in Warehouse for ${row.sku} — can't transfer ${qty}.` }, 400);
+  }
 
   const firstTransfer = row.shop_position === null;
   let nextPos = null;
@@ -258,7 +367,16 @@ async function handleInvTransfer(request, env, url) {
     nextPos = countRow.maxPos + 1;
   }
 
-  if (firstTransfer) {
+  if (isRing) {
+    const stmts = sizeLines.map(line =>
+      env.DB.prepare(`UPDATE ring_sizes SET quantity = quantity - ?1, shop_qty = shop_qty + ?1 WHERE inventory_id = ?2 AND size = ?3`).bind(line.qty, id, line.size)
+    );
+    await env.DB.batch(stmts);
+    await recomputeRingTotals(env, id);
+    if (firstTransfer) {
+      await env.DB.prepare(`UPDATE inventory SET shop_position = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`).bind(nextPos, id).run();
+    }
+  } else if (firstTransfer) {
     await env.DB.prepare(
       `UPDATE inventory SET quantity = quantity - ?1, shop_qty = shop_qty + ?1, shop_position = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?3`
     ).bind(qty, nextPos, id).run();
@@ -499,10 +617,29 @@ async function renderShopPage(request, env) {
 
   const CATEGORY_PLURAL = { Ring: "rings", Bracelet: "bracelets", Necklace: "necklaces", Earring: "earrings", Anklet: "anklets", Bangle: "bangles", Watch: "watches", "Finger Bracelet": "finger bracelets", Other: "other" };
 
+  // Rings only: fetch each ring's live per-size stock so the customer can
+  // pick a size on the card. Sizes with shop_qty <= 0 still render (greyed,
+  // disabled) so the customer can see the size exists rather than it just
+  // vanishing from the list.
+  const ringSizesById = {};
+  const ringIds = results.filter(p => p.category === "Ring").map(p => p.id);
+  if (ringIds.length) {
+    const ph = ringIds.map((_, i) => `?${i + 1}`).join(",");
+    // Fetches every size, including sold-out ones (shop_qty = 0), so they
+    // can still be shown in the dropdown, disabled, rather than silently
+    // vanishing.
+    const { results: allSizeRows } = await env.DB.prepare(
+      `SELECT inventory_id, size, shop_qty FROM ring_sizes WHERE inventory_id IN (${ph}) ORDER BY id ASC`
+    ).bind(...ringIds).all();
+    allSizeRows.forEach(r => { (ringSizesById[r.inventory_id] = ringSizesById[r.inventory_id] || []).push({ size: r.size, shop_qty: Number(r.shop_qty) }); });
+  }
+
   const cardsHtml = results.length
     ? results.map(p => {
         const soldOut = Number(p.shop_qty) <= 0;
         const searchBlob = (p.name + " " + p.category + " " + (CATEGORY_PLURAL[p.category] || "") + " " + (p.notes || "")).toLowerCase();
+        const sizes = p.category === "Ring" ? (ringSizesById[p.id] || []) : [];
+        const sizesAttr = sizes.length ? ` data-sizes="${escapeHtml(JSON.stringify(sizes))}"` : "";
         return `
       <div class="product-card${soldOut ? ' sold-out' : ''}" data-category="${escapeHtml(p.category)}" data-search="${escapeHtml(searchBlob)}">
         <div class="product-image">
@@ -514,7 +651,11 @@ async function renderShopPage(request, env) {
           <h3>${escapeHtml(p.name)}</h3>
           <p class="product-price">\u00a3${Number(p.sell_price || 0).toFixed(2)}</p>
           <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
-          <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.shop_qty || 0)}"${soldOut ? ' disabled' : ''}>${soldOut ? 'Sold Out' : 'Add to Cart'}</button>
+          ${sizes.length ? `<select class="size-select"${sizesAttr} onclick="event.stopPropagation()">
+            <option value="">Select a size</option>
+            ${sizes.map(s => `<option value="${escapeHtml(s.size)}"${s.shop_qty <= 0 ? ' disabled' : ''}>${escapeHtml(s.size)}${s.shop_qty <= 0 ? ' \u2014 Sold out' : ''}</option>`).join("")}
+          </select>` : ''}
+          <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.shop_qty || 0)}"${(soldOut || sizes.length) ? ' disabled' : ''}>${soldOut ? 'Sold Out' : (sizes.length ? 'Select a size' : 'Add to Cart')}</button>
         </div>
         <div class="product-desc">${escapeHtml(p.notes)}</div>
       </div>`;
@@ -1005,8 +1146,10 @@ async function getPostageCost(env) {
   return row && row.postage_cost !== null && row.postage_cost !== undefined ? Number(row.postage_cost) : 2.50;
 }
 
-// Sums duplicate ids so a tampered or stale client cart can't submit the
-// same line twice to bypass the per-line stock guard below.
+// Sums duplicate id+size lines so a tampered or stale client cart can't
+// submit the same line twice to bypass the per-line stock guard below.
+// Keyed on id+size (not just id) so two different ring sizes of the same
+// SKU are always kept as separate lines, never merged into one quantity.
 function mergeCartLines(items) {
   const map = new Map();
   (items || []).forEach(it => {
@@ -1014,9 +1157,12 @@ function mergeCartLines(items) {
     if (id === undefined || id === null || id === "") return;
     const qty = Number(it.qty) || 0;
     if (qty <= 0) return;
-    map.set(id, (map.get(id) || 0) + qty);
+    const size = it.size ? String(it.size).trim() : null;
+    const key = id + "::" + (size || "");
+    const existing = map.get(key);
+    map.set(key, { id, size, qty: (existing ? existing.qty : 0) + qty });
   });
-  return [...map.entries()].map(([id, qty]) => ({ id, qty }));
+  return [...map.values()];
 }
 
 // Confirms an order: atomically checks-and-decrements stock for every cart
@@ -1054,8 +1200,36 @@ async function confirmOrder(env, input) {
   const items = mergeCartLines(input.items);
   if (!items.length) return { success: false, error: "empty_cart" };
 
-  const decremented = []; // { id, qty, sku, name, category, sell_price, cost_per_item }
+  // Rolls back everything decremented so far in this order, both the
+  // per-size ring_sizes row (if any) and the parent inventory aggregate.
+  async function rollback(done) {
+    for (const d of done) {
+      if (d.size) {
+        await env.DB.prepare(`UPDATE ring_sizes SET shop_qty = shop_qty + ?1 WHERE inventory_id = ?2 AND size = ?3`).bind(d.qty, d.id, d.size).run();
+      }
+      await env.DB.prepare(`UPDATE inventory SET shop_qty = shop_qty + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`)
+        .bind(d.qty, d.id).run();
+    }
+  }
+
+  const decremented = []; // { id, size, qty, sku, name, category, sell_price, cost_per_item }
   for (const line of items) {
+    // A ring line guards stock at the SIZE level first — the specific size
+    // requested must have enough shop_qty, not just the ring overall. Only
+    // once that atomic guard passes do we touch the parent aggregate, using
+    // the exact same qty, so the two can never end up decremented by
+    // different amounts.
+    if (line.size) {
+      const sizeRow = await env.DB.prepare(
+        `UPDATE ring_sizes SET shop_qty = shop_qty - ?1 WHERE inventory_id = ?2 AND size = ?3 AND shop_qty >= ?1 RETURNING id`
+      ).bind(line.qty, line.id, line.size).first();
+      if (!sizeRow) {
+        await rollback(decremented);
+        const failedItem = await env.DB.prepare(`SELECT id, name, sku FROM inventory WHERE id = ?1`).bind(line.id).first();
+        return { success: false, error: "item_unavailable", item: failedItem ? { id: failedItem.id, size: line.size, name: failedItem.name + " (size " + line.size + ")", sku: failedItem.sku } : { id: line.id, size: line.size } };
+      }
+    }
+
     const row = await env.DB.prepare(
       `UPDATE inventory SET shop_qty = shop_qty - ?1, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?2 AND shop_qty >= ?1
@@ -1063,17 +1237,19 @@ async function confirmOrder(env, input) {
     ).bind(line.qty, line.id).first();
 
     if (!row) {
-      // Guard failed — undo every decrement already made earlier in this order.
-      for (const done of decremented) {
-        await env.DB.prepare(`UPDATE inventory SET shop_qty = shop_qty + ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2`)
-          .bind(done.qty, done.id).run();
+      // Parent guard failed — should only happen if the aggregate had drifted
+      // from the sum of its sizes. Undo the size decrement just made above
+      // (if any) plus every decrement already made earlier in this order.
+      if (line.size) {
+        await env.DB.prepare(`UPDATE ring_sizes SET shop_qty = shop_qty + ?1 WHERE inventory_id = ?2 AND size = ?3`).bind(line.qty, line.id, line.size).run();
       }
+      await rollback(decremented);
       const failedItem = await env.DB.prepare(`SELECT id, name, sku FROM inventory WHERE id = ?1`).bind(line.id).first();
-      return { success: false, error: "item_unavailable", item: failedItem || { id: line.id } };
+      return { success: false, error: "item_unavailable", item: failedItem ? { ...failedItem, size: line.size } : { id: line.id, size: line.size } };
     }
 
     decremented.push({
-      id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category,
+      id: line.id, size: line.size, qty: line.qty, sku: row.sku, name: row.name, category: row.category,
       sell_price: Number(row.sell_price) || 0, cost_per_item: Number(row.cost_per_item) || 0,
     });
   }
@@ -1101,9 +1277,9 @@ async function confirmOrder(env, input) {
 
   const itemStmts = decremented.map(it =>
     env.DB.prepare(
-      `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total, unit_cost, line_cost)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)`
-    ).bind(orderId, it.id, it.sku, it.name, it.category, it.sell_price, it.qty, it.sell_price * it.qty, it.cost_per_item, it.cost_per_item * it.qty)
+      `INSERT INTO order_items (order_id, inventory_id, sku, name, category, unit_price, quantity, line_total, unit_cost, line_cost, size)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+    ).bind(orderId, it.id, it.sku, it.name, it.category, it.sell_price, it.qty, it.sell_price * it.qty, it.cost_per_item, it.cost_per_item * it.qty, it.size || null)
   );
   await env.DB.batch(itemStmts);
 
@@ -1163,10 +1339,19 @@ async function priceCartLines(env, items) {
   const priced = [];
   for (const line of lines) {
     const row = await env.DB.prepare(`SELECT id, sku, name, category, sell_price, shop_qty FROM inventory WHERE id = ?1`).bind(line.id).first();
-    if (!row || Number(row.shop_qty) < line.qty) {
-      return { error: "item_unavailable", item: row ? { id: row.id, name: row.name, sku: row.sku } : { id: line.id } };
+    if (!row) return { error: "item_unavailable", item: { id: line.id } };
+    // For a ring line, availability is checked against the SPECIFIC size's
+    // shop stock, not the ring's overall total — the ring can show plenty
+    // of stock in aggregate while the exact size asked for is sold out.
+    if (line.size) {
+      const sizeRow = await env.DB.prepare(`SELECT shop_qty FROM ring_sizes WHERE inventory_id = ?1 AND size = ?2`).bind(line.id, line.size).first();
+      if (!sizeRow || Number(sizeRow.shop_qty) < line.qty) {
+        return { error: "item_unavailable", item: { id: row.id, name: row.name + " (size " + line.size + ")", sku: row.sku } };
+      }
+    } else if (Number(row.shop_qty) < line.qty) {
+      return { error: "item_unavailable", item: { id: row.id, name: row.name, sku: row.sku } };
     }
-    priced.push({ id: line.id, qty: line.qty, sku: row.sku, name: row.name, category: row.category, price: Number(row.sell_price) || 0 });
+    priced.push({ id: line.id, size: line.size, qty: line.qty, sku: row.sku, name: row.name, category: row.category, price: Number(row.sell_price) || 0 });
   }
   const subtotal = priced.reduce((sum, it) => sum + it.price * it.qty, 0);
   const shipping = await getPostageCost(env);
@@ -1207,7 +1392,7 @@ async function handlePaypalCreateOrder(request, env) {
           },
         },
         items: priced.items.map(it => ({
-          name: it.name.slice(0, 127),
+          name: (it.size ? `${it.name} (Size ${it.size})` : it.name).slice(0, 127),
           quantity: String(it.qty),
           unit_amount: { currency_code: "GBP", value: it.price.toFixed(2) },
         })),
@@ -1224,7 +1409,7 @@ async function handlePaypalCreateOrder(request, env) {
   ).bind(
     ppData.id,
     JSON.stringify({ name: c.name, email: c.email, address_line1: c.address_line1, address_line2: c.address_line2 || "", city: c.city, county: c.county || "", postcode: c.postcode, notes: c.notes || "" }),
-    JSON.stringify(priced.items.map(it => ({ id: it.id, qty: it.qty }))),
+    JSON.stringify(priced.items.map(it => ({ id: it.id, qty: it.qty, size: it.size || null }))),
     priced.subtotal, priced.shipping, priced.total
   ).run();
 

@@ -200,7 +200,7 @@ function renderDetail(data) {
       '<thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead>' +
       '<tbody>' +
         items.map(function (it) {
-          return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>';
+          return '<tr><td>' + esc(it.name) + (it.size ? ' <span class="staff-muted">(Size ' + esc(it.size) + ')</span>' : '') + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>';
         }).join('') +
         '<tr><td colspan="4" style="text-align:right;">Subtotal</td><td>' + money(o.subtotal) + '</td></tr>' +
         '<tr><td colspan="4" style="text-align:right;">Shipping</td><td>' + money(o.shipping) + '</td></tr>' +

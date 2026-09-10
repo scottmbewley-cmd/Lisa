@@ -142,7 +142,7 @@ function renderCheckoutSummary() {
       ${item.image_url ? `<img src="${esc(item.image_url)}" alt="${esc(item.name)}">` : '<div class="checkout-item-img-empty"></div>'}
       <div class="checkout-item-info">
         <span class="n">${esc(item.name)}</span>
-        <span class="s">SKU ${esc(item.sku)} &middot; Qty ${item.qty}</span>
+        <span class="s">SKU ${esc(item.sku)}${item.size ? ' &middot; Size ' + esc(item.size) : ''} &middot; Qty ${item.qty}</span>
       </div>
       <span class="checkout-item-price">£${(item.price * item.qty).toFixed(2)}</span>
     </div>
@@ -211,7 +211,7 @@ function initPaypalButtons() {
       if (!validateCheckoutForm()) throw new Error('validation_failed');
       const res = await fetch('/api/paypal/create-order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer: collectCustomer(), items: readCart().map(i => ({ id: i.id, qty: i.qty })) })
+        body: JSON.stringify({ customer: collectCustomer(), items: readCart().map(i => ({ id: i.id, qty: i.qty, size: i.size || null })) })
       });
       const data = await res.json();
       if (!res.ok || !data.orderID) {
@@ -229,7 +229,7 @@ function initPaypalButtons() {
       const result = await res.json();
       if (!res.ok || !result.success) {
         setCheckoutNote(result.message || 'Payment could not be completed — please try again.', true);
-        if (result.item) { removeFromCart(result.item.id); renderCheckoutSummary(); }
+        if (result.item) { removeFromCart(lineKey(result.item.id, result.item.size)); renderCheckoutSummary(); }
         return;
       }
       showCheckoutSuccess(result.orderId, result.invoiceNumber, result.total);
@@ -266,13 +266,13 @@ document.getElementById('staff-test-btn').addEventListener('click', async functi
   try {
     const res = await fetch('/api/staff-test-order', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer: collectCustomer(), items: readCart().map(i => ({ id: i.id, qty: i.qty })) })
+      body: JSON.stringify({ customer: collectCustomer(), items: readCart().map(i => ({ id: i.id, qty: i.qty, size: i.size || null })) })
     });
     const data = await res.json();
     if (res.status === 401) { setCheckoutNote('Staff login required for a test purchase — log in to the staff area in this browser first.', true); return; }
     if (!res.ok || !data.success) {
       setCheckoutNote(data.message || 'Could not create the test order.', true);
-      if (data.item) { removeFromCart(data.item.id); renderCheckoutSummary(); }
+      if (data.item) { removeFromCart(lineKey(data.item.id, data.item.size)); renderCheckoutSummary(); }
       return;
     }
     showCheckoutSuccess(data.orderId, data.invoiceNumber, data.total);

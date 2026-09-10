@@ -42,6 +42,12 @@
   .modal-backdrop.open { display: flex; }
   .modal-box { background: var(--staff-panel, #1c1c1c); border: 1px solid var(--staff-line); border-radius: 10px; padding: 24px; max-width: 380px; width: 90%; }
   .modal-box h4 { font-family: 'Cormorant Garamond', serif; margin: 0 0 6px; color: var(--staff-gold); }
+  .size-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .size-row input[type="text"] { max-width: 110px; }
+  .size-row input[type="number"] { max-width: 100px; }
+  .size-row .size-row-remove { background: none; border: none; color: var(--staff-danger); cursor: pointer; font-size: 0.8rem; text-decoration: underline; padding: 0; }
+  .transfer-size-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 0.88rem; }
+  .transfer-size-row input { max-width: 90px; }
 </style>
 </head>
 <body class="staff-body">
@@ -98,7 +104,13 @@
       </div>
       <div class="staff-field"><label>Supplier</label><input type="text" id="f-supplier" placeholder="e.g. Everful Wholesale" /></div>
       <div class="staff-field"><label>Supplier code</label><input type="text" id="f-supplier-code" placeholder="Their reference for this item — for reordering" /></div>
-      <div class="staff-field"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
+      <div class="staff-field" id="f-quantity-wrap"><label>Quantity</label><input type="number" min="0" id="f-quantity" value="0" /></div>
+      <div class="staff-field full" id="f-sizes-wrap" style="display:none;">
+        <label>Sizes &amp; quantities</label>
+        <p class="staff-muted" style="font-size:0.8rem; margin:0 0 8px;">Add each size with how many came in for this batch. Rings track stock per size, not as one total.</p>
+        <div id="sizes-rows"></div>
+        <button type="button" class="staff-btn outline" id="add-size-row-btn" style="padding:7px 14px; font-size:0.8rem; margin-top:4px;">+ Add size</button>
+      </div>
       <div class="staff-field"><label>Reorder at</label><input type="number" min="0" id="f-reorder" value="2" /></div>
       <div class="staff-field full"><label>Paid in</label>
         <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -172,7 +184,11 @@
   <div class="modal-box">
     <h4>Transfer to Inventory</h4>
     <p class="staff-muted" id="transfer-item-label" style="font-size:0.85rem; margin-top:0;"></p>
-    <div class="staff-field"><label>Quantity to move</label><input type="number" min="1" id="transfer-qty" value="1" /></div>
+    <div class="staff-field" id="transfer-flat-wrap"><label>Quantity to move</label><input type="number" min="1" id="transfer-qty" value="1" /></div>
+    <div id="transfer-sizes-wrap" style="display:none;">
+      <label class="staff-muted" style="font-size:0.8rem; display:block; margin-bottom:8px;">How many of each size to move to the shop:</label>
+      <div id="transfer-sizes-rows"></div>
+    </div>
     <div id="transfer-msg"></div>
     <div style="display:flex; gap:10px; margin-top:14px;">
       <button class="staff-btn" id="transfer-confirm-btn">Transfer</button>
@@ -253,6 +269,41 @@ document.getElementById('f-currency').addEventListener('change', () => {
 document.getElementById('f-usd-amount').addEventListener('input', convertUsd);
 document.getElementById('f-usd-rate').addEventListener('input', convertUsd);
 
+// ----- Ring sizes builder (Ring category only) -----
+function makeSizeRow(size, qty) {
+  const row = document.createElement('div');
+  row.className = 'size-row';
+  row.innerHTML =
+    '<input type="text" class="size-name" placeholder="e.g. J" value="' + esc(size || '') + '" />' +
+    '<input type="number" class="size-qty" min="0" placeholder="Qty" value="' + (qty !== undefined && qty !== null ? qty : '') + '" />' +
+    '<button type="button" class="size-row-remove">Remove</button>';
+  row.querySelector('.size-row-remove').addEventListener('click', function () { row.remove(); invTracker.markDirty(); });
+  return row;
+}
+function addSizeRow(size, qty) { document.getElementById('sizes-rows').appendChild(makeSizeRow(size, qty)); }
+function renderSizeRows(sizes) {
+  const wrap = document.getElementById('sizes-rows');
+  wrap.innerHTML = '';
+  if (sizes && sizes.length) { sizes.forEach(function (s) { addSizeRow(s.size, s.quantity); }); }
+  else { addSizeRow('', ''); }
+}
+function collectSizes() {
+  return Array.from(document.querySelectorAll('#sizes-rows .size-row')).map(function (row) {
+    return { size: row.querySelector('.size-name').value.trim(), quantity: Number(row.querySelector('.size-qty').value) || 0 };
+  }).filter(function (s) { return s.size; });
+}
+document.getElementById('add-size-row-btn').addEventListener('click', function () { addSizeRow('', ''); invTracker.markDirty(); });
+document.getElementById('sizes-rows').addEventListener('input', function () { invTracker.markDirty(); });
+
+function updateCategoryFieldsVisibility() {
+  const isRing = document.getElementById('f-category').value === 'Ring';
+  document.getElementById('f-quantity-wrap').style.display = isRing ? 'none' : '';
+  document.getElementById('f-sizes-wrap').style.display = isRing ? '' : 'none';
+  if (isRing && !document.getElementById('sizes-rows').children.length) renderSizeRows(null);
+}
+document.getElementById('f-category').addEventListener('change', updateCategoryFieldsVisibility);
+updateCategoryFieldsVisibility();
+
 function resetForm() {
   editingId = null;
   pendingPhotoFile = null;
@@ -269,6 +320,8 @@ function resetForm() {
   document.getElementById('form-title').textContent = 'Add stock';
   document.getElementById('save-btn').textContent = 'Add to Warehouse';
   document.getElementById('cancel-edit-btn').style.display = 'none';
+  renderSizeRows(null);
+  updateCategoryFieldsVisibility();
 }
 
 function openForEdit(row) {
@@ -279,6 +332,8 @@ function openForEdit(row) {
   document.getElementById('f-supplier').value = row.supplier || '';
   document.getElementById('f-supplier-code').value = row.supplier_code || '';
   document.getElementById('f-quantity').value = row.quantity || 0;
+  updateCategoryFieldsVisibility();
+  renderSizeRows(row.category === 'Ring' ? (row.sizes || []).map(function (s) { return { size: s.size, quantity: s.quantity }; }) : null);
   document.getElementById('f-reorder').value = (row.reorder_at === null || row.reorder_at === undefined) ? 2 : row.reorder_at;
   document.getElementById('f-cost').value = row.cost_per_item || '';
   document.getElementById('f-price').value = row.sell_price || '';
@@ -315,6 +370,11 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   const cost = document.getElementById('f-cost').value;
   msgEl.style.color = '';
   if (!category || !name) { msgEl.textContent = 'Category and name are required.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  if (category === 'Ring' && !collectSizes().length) {
+    msgEl.textContent = 'Add at least one size with a quantity.';
+    msgEl.style.color = 'var(--staff-danger)';
+    return;
+  }
   if (!editingId) {
     const missing = [];
     if (!supplier) missing.push('supplier');
@@ -345,12 +405,13 @@ document.getElementById('save-btn').addEventListener('click', async () => {
       description: document.getElementById('f-description').value.trim(),
       supplier: supplier,
       supplier_code: document.getElementById('f-supplier-code').value.trim(),
-      quantity: Number(document.getElementById('f-quantity').value) || 0,
       reorder_at: Number(document.getElementById('f-reorder').value) || 0,
       cost_per_item: Number(document.getElementById('f-cost').value) || 0,
       sell_price: Number(document.getElementById('f-price').value) || 0,
       photo_url: photoUrl
     };
+    if (category === 'Ring') { payload.sizes = collectSizes(); }
+    else { payload.quantity = Number(document.getElementById('f-quantity').value) || 0; }
 
     msgEl.textContent = 'Saving...';
     let res, data;
@@ -383,24 +444,51 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   }
 });
 
+let transferIsRing = false;
 function openTransferModal(row) {
   transferTargetId = row.id;
+  transferIsRing = row.category === 'Ring';
   document.getElementById('transfer-item-label').textContent = row.name + ' (' + row.sku + ') — ' + row.quantity + ' in Warehouse';
-  document.getElementById('transfer-qty').value = 1;
-  document.getElementById('transfer-qty').max = row.quantity;
   document.getElementById('transfer-msg').textContent = '';
+  if (transferIsRing) {
+    document.getElementById('transfer-flat-wrap').style.display = 'none';
+    document.getElementById('transfer-sizes-wrap').style.display = '';
+    const rowsWrap = document.getElementById('transfer-sizes-rows');
+    const sizes = (row.sizes || []).filter(function (s) { return s.quantity > 0; });
+    rowsWrap.innerHTML = sizes.length
+      ? sizes.map(function (s) {
+          return '<div class="transfer-size-row"><span>' + esc(s.size) + ' <span class="staff-muted">(' + s.quantity + ' in Warehouse)</span></span>' +
+            '<input type="number" min="0" max="' + s.quantity + '" value="0" data-size="' + esc(s.size) + '" class="transfer-size-qty" /></div>';
+        }).join('')
+      : '<p class="staff-muted" style="font-size:0.85rem;">No sizes with Warehouse stock to move.</p>';
+  } else {
+    document.getElementById('transfer-flat-wrap').style.display = '';
+    document.getElementById('transfer-sizes-wrap').style.display = 'none';
+    document.getElementById('transfer-qty').value = 1;
+    document.getElementById('transfer-qty').max = row.quantity;
+  }
   document.getElementById('transfer-modal').classList.add('open');
 }
 document.getElementById('transfer-cancel-btn').addEventListener('click', () => document.getElementById('transfer-modal').classList.remove('open'));
 document.getElementById('transfer-confirm-btn').addEventListener('click', async () => {
-  const qty = Number(document.getElementById('transfer-qty').value) || 0;
   const msgEl = document.getElementById('transfer-msg');
-  if (qty <= 0) { msgEl.textContent = 'Enter a quantity greater than 0.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+  let body;
+  if (transferIsRing) {
+    const sizes = Array.from(document.querySelectorAll('.transfer-size-qty'))
+      .map(function (inp) { return { size: inp.dataset.size, qty: Number(inp.value) || 0 }; })
+      .filter(function (s) { return s.qty > 0; });
+    if (!sizes.length) { msgEl.textContent = 'Enter a quantity for at least one size.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    body = { id: transferTargetId, sizes: sizes };
+  } else {
+    const qty = Number(document.getElementById('transfer-qty').value) || 0;
+    if (qty <= 0) { msgEl.textContent = 'Enter a quantity greater than 0.'; msgEl.style.color = 'var(--staff-danger)'; return; }
+    body = { id: transferTargetId, qty: qty };
+  }
   msgEl.textContent = 'Transferring...';
   msgEl.style.color = '';
   try {
     const res = await fetchWithTimeout('/api/inv-transfer', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: transferTargetId, qty: qty })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }, 15000);
     const data = await res.json();
     if (!res.ok) { msgEl.textContent = data.error || 'Transfer failed.'; msgEl.style.color = 'var(--staff-danger)'; return; }

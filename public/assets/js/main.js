@@ -9,6 +9,30 @@ document.addEventListener('DOMContentLoaded', () => {
     card.addEventListener('click', () => card.classList.toggle('open'));
   });
 
+  // Ring size pickers: each ring card with sizes starts with its
+  // Add-to-Cart button disabled (server-rendered) until a size is chosen.
+  // Choosing a size updates the button's data-size/data-quantity so
+  // cart.js's existing delegated click handler picks up the right values
+  // with no changes needed there beyond reading data-size.
+  document.querySelectorAll('.size-select').forEach(select => {
+    let sizes = [];
+    try { sizes = JSON.parse(select.dataset.sizes || '[]'); } catch (e) { sizes = []; }
+    const btn = select.closest('.product-info').querySelector('.add-to-cart-btn');
+    select.addEventListener('change', () => {
+      const chosen = sizes.find(s => s.size === select.value);
+      if (!chosen || chosen.shop_qty <= 0) {
+        btn.disabled = true;
+        btn.dataset.size = '';
+        btn.textContent = 'Select a size';
+        return;
+      }
+      btn.disabled = false;
+      btn.dataset.size = chosen.size;
+      btn.dataset.quantity = String(chosen.shop_qty);
+      btn.textContent = 'Add to Cart';
+    });
+  });
+
   const searchInput = document.getElementById('shop-search');
   const chips = document.querySelectorAll('.chip');
   if (searchInput) {

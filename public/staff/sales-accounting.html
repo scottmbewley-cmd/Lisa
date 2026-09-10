@@ -274,7 +274,7 @@ function invoiceDetailHtml(o, items) {
       '<p class="staff-muted" style="margin:0 0 4px;">' + [o.address_line1, o.address_line2, o.city, o.county, o.postcode].filter(Boolean).map(esc).join(', ') + '</p>' +
       '<p class="staff-muted" style="margin:0 0 14px;">' + esc(o.customer_email) + '</p>' +
       '<table class="staff-table"><thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>' +
-        items.map(function (it) { return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>'; }).join('') +
+        items.map(function (it) { return '<tr><td>' + esc(it.name) + (it.size ? ' <span class="staff-muted">(Size ' + esc(it.size) + ')</span>' : '') + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>' + money(it.unit_price) + '</td><td>' + money(it.line_total) + '</td></tr>'; }).join('') +
         '<tr><td colspan="4" style="text-align:right;">Subtotal</td><td>' + money(o.subtotal) + '</td></tr>' +
         '<tr><td colspan="4" style="text-align:right;">Shipping</td><td>' + money(o.shipping) + '</td></tr>' +
         '<tr><td colspan="4" style="text-align:right; font-weight:700;">Total</td><td style="font-weight:700;">' + money(o.total) + '</td></tr>' +
