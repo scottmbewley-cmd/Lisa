@@ -98,6 +98,20 @@ async function recomputeRingTotals(env, inventoryId) {
   return row;
 }
 
+const US_TO_UK_RING_SIZE = {
+  "3": "F", "3.5": "G", "4": "H", "4.5": "I", "5": "J", "5.5": "K",
+  "6": "L", "6.5": "M", "7": "N", "7.5": "O", "8": "P", "8.5": "Q",
+  "9": "R", "9.5": "S", "10": "T", "10.5": "U", "11": "V", "11.5": "W",
+  "12": "X", "13": "Z"
+};
+function formatRingSizeLabel(sizeStr) {
+  const raw = String(sizeStr || "").trim();
+  const num = Number(raw);
+  const key = Number.isFinite(num) && raw !== "" ? String(num) : null;
+  const uk = key ? US_TO_UK_RING_SIZE[key] : null;
+  return uk ? ("US " + key + " (UK " + uk + ")") : raw;
+}
+
 async function handleInvReport(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Bangle","Watch","Finger Bracelet","Other"];
@@ -653,7 +667,7 @@ async function renderShopPage(request, env) {
           <p class="product-sku">SKU ${escapeHtml(p.sku)}</p>
           ${sizes.length ? `<select class="size-select"${sizesAttr} onclick="event.stopPropagation()">
             <option value="">Select a size</option>
-            ${sizes.map(s => `<option value="${escapeHtml(s.size)}"${s.shop_qty <= 0 ? ' disabled' : ''}>${escapeHtml(s.size)}${s.shop_qty <= 0 ? ' \u2014 Sold out' : ''}</option>`).join("")}
+            ${sizes.map(s => `<option value="${escapeHtml(s.size)}"${s.shop_qty <= 0 ? ' disabled' : ''}>${escapeHtml(formatRingSizeLabel(s.size))}${s.shop_qty <= 0 ? ' \u2014 Sold out' : ''}</option>`).join("")}
           </select>` : ''}
           <button type="button" class="add-to-cart-btn" data-id="${escapeHtml(p.id)}" data-sku="${escapeHtml(p.sku)}" data-name="${escapeHtml(p.name)}" data-price="${Number(p.sell_price || 0)}" data-image="${escapeHtml(p.photo_url)}" data-quantity="${Number(p.shop_qty || 0)}"${(soldOut || sizes.length) ? ' disabled' : ''}>${soldOut ? 'Sold Out' : (sizes.length ? 'Select a size' : 'Add to Cart')}</button>
         </div>
@@ -1392,7 +1406,7 @@ async function handlePaypalCreateOrder(request, env) {
           },
         },
         items: priced.items.map(it => ({
-          name: (it.size ? `${it.name} (Size ${it.size})` : it.name).slice(0, 127),
+          name: (it.size ? `${it.name} (Size ${formatRingSizeLabel(it.size)})` : it.name).slice(0, 127),
           quantity: String(it.qty),
           unit_amount: { currency_code: "GBP", value: it.price.toFixed(2) },
         })),

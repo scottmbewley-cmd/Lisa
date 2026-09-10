@@ -29,6 +29,30 @@ function cartTotal(items) { return (items || readCart()).reduce((sum, i) => sum 
 // non-ring items simply have size undefined, which still forms a stable key.
 function lineKey(id, size) { return String(id) + '::' + (size || ''); }
 
+// Lisa buys and tracks ring stock in US sizes only (Warehouse, Inventory,
+// invoices all stay plain US numbers) — this table is purely a DISPLAY
+// layer for customers, who are more likely to know their UK size. The
+// stored/submitted value is always the plain US number; only what's shown
+// on screen changes. Standard US→UK conversion — confirmed against Lisa's
+// own sizing on 2026-09-10.
+const US_TO_UK_RING_SIZE = {
+  "3": "F", "3.5": "G", "4": "H", "4.5": "I", "5": "J", "5.5": "K",
+  "6": "L", "6.5": "M", "7": "N", "7.5": "O", "8": "P", "8.5": "Q",
+  "9": "R", "9.5": "S", "10": "T", "10.5": "U", "11": "V", "11.5": "W",
+  "12": "X", "13": "Z"
+};
+// Normalizes "6", "6.0", " 6 " to the same lookup key so however Lisa typed
+// it in Warehouse, the customer sees the same label. Anything that isn't a
+// recognised US ring number (a typo, or a non-numeric size like
+// "Adjustable") is shown exactly as stored, with no US/UK wrapper added.
+function formatRingSize(sizeStr) {
+  const raw = String(sizeStr || '').trim();
+  const num = Number(raw);
+  const key = Number.isFinite(num) && raw !== '' ? String(num) : null;
+  const uk = key ? US_TO_UK_RING_SIZE[key] : null;
+  return uk ? ('US ' + key + ' (UK ' + uk + ')') : raw;
+}
+
 function addToCart(product, qty) {
   qty = qty || 1;
   const items = readCart();
@@ -92,7 +116,7 @@ function renderDrawer() {
       ${item.image_url ? `<img class="cart-line-img" src="${esc(item.image_url)}" alt="${esc(item.name)}">` : '<div class="cart-line-img"></div>'}
       <div class="cart-line-info">
         <span class="n">${esc(item.name)}</span>
-        <span class="s">SKU ${esc(item.sku)}${item.size ? ' &middot; Size ' + esc(item.size) : ''}</span>
+        <span class="s">SKU ${esc(item.sku)}${item.size ? ' &middot; Size ' + esc(formatRingSize(item.size)) : ''}</span>
         <div class="p">£${(item.price * item.qty).toFixed(2)}</div>
         <div class="cart-qty-row">
           <button class="cart-qty-btn qty-minus" data-id="${esc(key)}">&minus;</button>

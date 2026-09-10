@@ -142,7 +142,7 @@ function renderCheckoutSummary() {
       ${item.image_url ? `<img src="${esc(item.image_url)}" alt="${esc(item.name)}">` : '<div class="checkout-item-img-empty"></div>'}
       <div class="checkout-item-info">
         <span class="n">${esc(item.name)}</span>
-        <span class="s">SKU ${esc(item.sku)}${item.size ? ' &middot; Size ' + esc(item.size) : ''} &middot; Qty ${item.qty}</span>
+        <span class="s">SKU ${esc(item.sku)}${item.size ? ' &middot; Size ' + esc(formatRingSize(item.size)) : ''} &middot; Qty ${item.qty}</span>
       </div>
       <span class="checkout-item-price">£${(item.price * item.qty).toFixed(2)}</span>
     </div>
