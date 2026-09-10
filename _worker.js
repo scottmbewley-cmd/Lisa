@@ -48,7 +48,7 @@ function escapeHtml(s) {
 
 async function handleInvReport(request, env, url) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
-  const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+  const allCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Bangle","Watch","Finger Bracelet","Other"];
   const raw = (url.searchParams.get("categories") || "").split(",").map(s => s.trim()).filter(Boolean);
   const cats = raw.length ? raw.filter(c => allCats.includes(c)) : allCats;
   if (!cats.length) return json({ summary: [], items: [] });
@@ -133,7 +133,7 @@ async function logStockExpenditure(env, { inventoryId, qtyDelta, costPerItem, na
   ).run();
 }
 
-const CATEGORY_CAPS = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
+const CATEGORY_CAPS = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Bangle: 50, Watch: 50, "Finger Bracelet": 50, Other: 10 };
 
 async function handleInvItems(request, env, url) {
   if (request.method === "GET") {
@@ -472,7 +472,7 @@ async function handleAccountingReport(request, env, url) {
 
 async function getActiveLibraries(env) {
   const { results } = await env.DB.prepare(`SELECT active_libraries FROM shop_config WHERE id = 1`).all();
-  const raw = (results[0] && results[0].active_libraries) || "Ring,Bracelet,Necklace,Earring,Anklet";
+  const raw = (results[0] && results[0].active_libraries) || "Ring,Bracelet,Necklace,Earring,Anklet,Bangle,Watch,Finger Bracelet";
   return raw.split(",").map(s => s.trim()).filter(Boolean);
 }
 
@@ -497,7 +497,7 @@ async function renderShopPage(request, env) {
     ? await env.DB.prepare(`SELECT * FROM inventory WHERE category IN (${placeholders}) AND shop_position IS NOT NULL ORDER BY RANDOM()`).bind(...libs).all()
     : { results: [] };
 
-  const CATEGORY_PLURAL = { Ring: "rings", Bracelet: "bracelets", Necklace: "necklaces", Earring: "earrings", Anklet: "anklets", Other: "other" };
+  const CATEGORY_PLURAL = { Ring: "rings", Bracelet: "bracelets", Necklace: "necklaces", Earring: "earrings", Anklet: "anklets", Bangle: "bangles", Watch: "watches", "Finger Bracelet": "finger bracelets", Other: "other" };
 
   const cardsHtml = results.length
     ? results.map(p => {
@@ -967,7 +967,7 @@ async function handleImageUpload(request, env) {
 async function handleShopReorder(request, env) {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const b = await request.json();
-  const validCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+  const validCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Bangle","Watch","Finger Bracelet","Other"];
   if (!b.category || !validCats.includes(b.category) || !Array.isArray(b.order)) {
     return json({ error: "category and order[] (inventory ids) are required" }, 400);
   }
@@ -986,7 +986,7 @@ async function handleShopConfig(request, env) {
   if (request.method === "POST") {
     const b = await request.json();
     const libs = Array.isArray(b.active_libraries) ? b.active_libraries : [];
-    const validCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
+    const validCats = ["Ring","Bracelet","Necklace","Earring","Anklet","Bangle","Watch","Finger Bracelet","Other"];
     const valid = libs.filter(l => validCats.includes(l));
     await env.DB.prepare(`UPDATE shop_config SET active_libraries = ?1 WHERE id = 1`).bind(valid.join(",")).run();
     return json({ success: true, active_libraries: valid });

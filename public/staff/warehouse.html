@@ -70,7 +70,7 @@
       <div class="staff-field"><label>Category</label>
         <select id="f-category">
           <option value="">— select —</option>
-          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+          <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Bangle</option><option>Watch</option><option>Finger Bracelet</option><option>Other</option>
         </select>
       </div>
       <div class="staff-field"><label>Name</label><input type="text" id="f-name" placeholder="e.g. Gold hoop earrings" /></div>
@@ -156,7 +156,7 @@
         <div class="staff-field"><label>Category</label>
           <select id="s-category">
             <option value="">All categories</option>
-            <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Other</option>
+            <option>Ring</option><option>Bracelet</option><option>Necklace</option><option>Earring</option><option>Anklet</option><option>Bangle</option><option>Watch</option><option>Finger Bracelet</option><option>Other</option>
           </select>
         </div>
         <div class="staff-field"><label>Search</label><input type="text" id="s-query" placeholder="Name, SKU, or supplier" /></div>
@@ -488,7 +488,7 @@ document.getElementById('search-btn').addEventListener('click', runSearch);
 document.getElementById('s-query').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
 document.getElementById('s-category').addEventListener('change', runSearch);
 
-const REPORT_CATS = ['Ring','Bracelet','Necklace','Earring','Anklet','Other'];
+const REPORT_CATS = ['Ring','Bracelet','Necklace','Earring','Anklet','Bangle','Watch','Finger Bracelet','Other'];
 const checksWrap = document.getElementById('report-checks');
 REPORT_CATS.forEach(function (cat) {
   const id = 'rc-' + cat;

@@ -92,6 +92,9 @@
       <div class="staff-lib-card" data-lib="Necklace"><h4>Necklace Library</h4><span id="count-Necklace">0 / 50</span></div>
       <div class="staff-lib-card" data-lib="Earring"><h4>Earring Library</h4><span id="count-Earring">0 / 50</span></div>
       <div class="staff-lib-card" data-lib="Anklet"><h4>Anklet Library</h4><span id="count-Anklet">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="Bangle"><h4>Bangle Library</h4><span id="count-Bangle">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="Watch"><h4>Watch Library</h4><span id="count-Watch">0 / 50</span></div>
+      <div class="staff-lib-card" data-lib="Finger Bracelet"><h4>Finger Bracelet Library</h4><span id="count-Finger Bracelet">0 / 50</span></div>
       <div class="staff-lib-card" data-lib="Other"><h4>Other</h4><span id="count-Other">0 / 10</span></div>
     </div>
     <div id="lib-status-msg" style="font-size:0.85rem; margin:10px 0; min-height:20px;"></div>
@@ -105,6 +108,9 @@
     <button class="lib-tab-btn" data-lib="Necklace">Necklace Library</button>
     <button class="lib-tab-btn" data-lib="Earring">Earring Library</button>
     <button class="lib-tab-btn" data-lib="Anklet">Anklet Library</button>
+    <button class="lib-tab-btn" data-lib="Bangle">Bangle Library</button>
+    <button class="lib-tab-btn" data-lib="Watch">Watch Library</button>
+    <button class="lib-tab-btn" data-lib="Finger Bracelet">Finger Bracelet Library</button>
     <button class="lib-tab-btn" data-lib="Other">Other</button>
   </div>
 
@@ -128,6 +134,18 @@
     <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-Anklet">0 / 50</span></div>
     <div class="slot-grid" id="grid-Anklet"></div>
   </div>
+  <div class="lib-panel" data-lib="Bangle">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-Bangle">0 / 50</span></div>
+    <div class="slot-grid" id="grid-Bangle"></div>
+  </div>
+  <div class="lib-panel" data-lib="Watch">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-Watch">0 / 50</span></div>
+    <div class="slot-grid" id="grid-Watch"></div>
+  </div>
+  <div class="lib-panel" data-lib="Finger Bracelet">
+    <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-Finger Bracelet">0 / 50</span></div>
+    <div class="slot-grid" id="grid-Finger Bracelet"></div>
+  </div>
   <div class="lib-panel" data-lib="Other">
     <div class="lib-panel-head"><span class="staff-muted">Drag pieces to reorder — this is what visitors see when this library is live.</span><span class="cap" id="cap-Other">0 / 10</span></div>
     <div class="slot-grid" id="grid-Other"></div>
@@ -136,8 +154,8 @@
   <div id="status-msg" style="font-size:0.85rem; margin:20px 0; min-height:20px;"></div>
 </main>
 <script>
-const LIBS = ["Ring","Bracelet","Necklace","Earring","Anklet","Other"];
-const CAPS = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Other: 10 };
+const LIBS = ["Ring","Bracelet","Necklace","Earring","Anklet","Bangle","Watch","Finger Bracelet","Other"];
+const CAPS = { Ring: 50, Bracelet: 50, Necklace: 50, Earring: 50, Anklet: 50, Bangle: 50, Watch: 50, "Finger Bracelet": 50, Other: 10 };
 
 let allProducts = [];
 let activeLibraries = [];
