@@ -5,7 +5,7 @@
   --sage-deep: #6C8D83;
   --taupe: #B7AF90;
   --cream: #F8F4EF;
-  --charcoal: #3D454B;
+  --charcoal: #383F45;
   --gold: #C9A24B;
   --gold-soft: #E4D3A0;
   --stone: #E7E3DC;
@@ -396,7 +396,7 @@ p { margin: 0 0 1em; }
   justify-content: space-between;
   align-items: center;
   font-size: 0.8rem;
-  opacity: 0.65;
+  opacity: 0.97;
 }
 
 .footer-bottom a { text-decoration: underline; opacity: 1; color: var(--charcoal); }
@@ -432,7 +432,7 @@ p { margin: 0 0 1em; }
 
 /* Utility */
 .text-center { text-align: center; }
-.muted { opacity: 0.7; }
+.muted { opacity: 0.8; }
 .divider {
   width: 60px; height: 2px; background: var(--gold);
   margin: 20px auto;
