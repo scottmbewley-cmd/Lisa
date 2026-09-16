@@ -613,7 +613,7 @@ async function runReport() {
 
     const bodyRows = summary.map(function (r) {
       const catItems = items.filter(function (it) { return it.category === r.category; });
-      const header = '<tr class="cat-row"><td colspan="4">' + esc(r.category) + ' \u2014 ' + r.items + ' item' + (r.items === 1 ? '' : 's') + ', ' + r.total_qty + ' in warehouse, \u00a3' + Number(r.total_value).toFixed(2) + ' value' + '</td></tr>';
+      const header = '<tr class="cat-row"><td colspan="4">' + esc(r.category) + ' \u2014 ' + r.items + ' listing' + (r.items === 1 ? '' : 's') + ', ' + r.total_qty + ' item' + (r.total_qty === 1 ? '' : 's') + ' in the warehouse, \u00a3' + Number(r.total_value).toFixed(2) + ' value' + '</td></tr>';
       const detail = catItems.length
         ? catItems.map(function (it) {
             return '<tr><td>' + esc(it.name) + '</td><td class="staff-muted">' + esc(it.sku) + '</td><td>' + it.quantity + '</td><td>\u00a3' + Number(it.sell_price || 0).toFixed(2) + '</td></tr>';
@@ -623,7 +623,7 @@ async function runReport() {
     }).join('');
 
     const totalRow = summary.length > 1
-      ? '<tr class="cat-row"><td colspan="4">Total \u2014 ' + totalItems + ' item' + (totalItems === 1 ? '' : 's') + ', ' + totalQty + ' in warehouse, \u00a3' + totalValue.toFixed(2) + ' value' + '</td></tr>'
+      ? '<tr class="cat-row"><td colspan="4">Total \u2014 ' + totalItems + ' listing' + (totalItems === 1 ? '' : 's') + ', ' + totalQty + ' item' + (totalQty === 1 ? '' : 's') + ' in the warehouse, \u00a3' + totalValue.toFixed(2) + ' value' + '</td></tr>'
       : '';
 
     const tableHtml = '' +
