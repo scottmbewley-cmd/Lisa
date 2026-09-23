@@ -139,6 +139,9 @@ show up in git; check the dashboard before assuming it is missing)
   disallowed in `robots.txt` — so it is crawlable but unmarked. Decide: `noindex`
   or leave.
 - `sitemap.xml` has no `<lastmod>` values.
-- **Google Search Console status unknown.** Nothing in this repo shows whether the
-  property is verified or the sitemap was ever submitted. Confirm with Scott before
-  assuming indexing is being monitored.
+- **Not in Google Search Console — deliberate, not an oversight.** This site is not
+  officially launched yet. Scott is keeping it low-visibility on purpose while it's
+  unlaunched: no GBP, no Search Console property, no promotion. Do NOT set any of
+  this up, submit a sitemap, or try to improve indexing here unless Scott explicitly
+  says the site has launched. If he says it's ready to push live/public, ask what
+  he wants set up before doing anything.
