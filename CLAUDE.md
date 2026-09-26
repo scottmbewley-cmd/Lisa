@@ -86,8 +86,7 @@ A successful deploy prints the bindings table plus
 
 ## Standing rules for this project
 
-- **Never deploy without explicit confirmation from Scott.** No exceptions for
-  "small" changes.
+- **Never change or build anything (code, files, deploys) without explicit confirmation from Scott.** No exceptions for "small" changes.
 - **Always verify the Cloudflare account before any Cloudflare action.** Query the
   API; never assume from memory or from a `.wrangler` cache.
 - **Stage files by name — never `git add .`**
