@@ -132,7 +132,7 @@ async function handleInvReport(request, env, url) {
   const summary = cats.map(c => byCategory[c] || { category: c, items: 0, total_qty: 0, total_value: 0, low_count: 0 });
 
   const { results: items } = await env.DB.prepare(
-    `SELECT id, sku, name, category, quantity, shop_qty, sell_price, reorder_at FROM inventory WHERE category IN (${placeholders}) ORDER BY category ASC, name ASC`
+    `SELECT id, sku, name, category, quantity, shop_qty, sell_price, reorder_at FROM inventory WHERE category IN (${placeholders}) ORDER BY category ASC, CAST(SUBSTR(sku, 4) AS INTEGER) ASC, sku ASC`
   ).bind(...cats).all();
 
   return json({ summary, items });
