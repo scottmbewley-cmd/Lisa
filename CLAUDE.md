@@ -103,9 +103,19 @@ not apply here unless one is added.
 
 ---
 
-## Known state — as of 2026-09-23
+## Known state — as of 2026-10-08
 
-**Production matches the repo** as of `d1a5669` (2026-09-20) — canonicals from that
+**2026-10-08, `e6acc5f`:** Warehouse stock report (`/api/inv-report` in `_worker.js`)
+now sorts items by SKU number inside each category (was by name). Rings, Necklaces
+etc. each stay in their own section, SKU ascending. Deployed to `lisa-website` on
+Customer Sites, version `3d00e821-1e2f-4837-bccf-d437d8a980db`. Verified: deployed
+Worker code contains the new ORDER BY, site returns 200, `/api/inv-report` returns
+401 without a staff session. Warehouse "Find an item" search results and the
+Shop Library list still sort by name; the public shop page stays random.
+
+**Earlier state, as of 2026-09-23:**
+
+**Production matched the repo** at `d1a5669` (2026-09-20) — canonicals from that
 commit verified live on all four inner pages. No site code has changed since; the
 only later commit adds this CLAUDE.md.
 
