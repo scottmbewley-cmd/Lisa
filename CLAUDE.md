@@ -103,7 +103,22 @@ not apply here unless one is added.
 
 ---
 
-## Known state — as of 2026-10-08
+## Known state - as of 2026-10-09
+
+**2026-10-09, `4cc08e9`:** Warehouse "Delete permanently" fixed. It silently failed for any item
+with stock history because of foreign keys (`expenditure.linked_inventory_id`,
+`ring_sizes.inventory_id`, `sales.item_sku` all reference inventory with no cascade).
+`DELETE /api/inv-items` in `_worker.js` now runs one atomic `DB.batch`: unlinks the item's
+expenditure rows (stock cost stays in the ledger), deletes its ring_sizes and
+stream_plan_items, nulls any legacy `sales.item_sku`, then deletes the inventory row.
+`order_items` are snapshots with no FK and are untouched. `warehouse.html` now alerts the
+server error instead of ignoring it. Logic tested on a synthetic item (TEST-DEL-1, fully
+removed afterwards, row counts back to 217 inventory / 249 linked expenditure). Deployed to
+`lisa-website` on Customer Sites, version `542c8045-4ff1-4eb0-afd0-a10b8e30820b`. Verified:
+deployed Worker code contains the batch delete, site 200, unauthenticated DELETE returns 401.
+EV-0085 and EV-0052 (the two watches Scott reported) were NOT deleted, left for Scott/Lisa.
+
+## Earlier known state - as of 2026-10-08
 
 **2026-10-08, `e6acc5f`:** Warehouse stock report (`/api/inv-report` in `_worker.js`)
 now sorts items by SKU number inside each category (was by name). Rings, Necklaces
