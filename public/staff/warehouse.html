@@ -563,7 +563,15 @@ async function runSearch() {
     wrap.querySelectorAll('.del-btn').forEach(function (b) {
       b.addEventListener('click', async function () {
         if (!confirm('Delete this item permanently? This removes its full stock record and cannot be undone.')) return;
-        await fetch('/api/inv-items?id=' + encodeURIComponent(b.dataset.id), { method: 'DELETE' });
+        let delRes, delData = {};
+        try {
+          delRes = await fetch('/api/inv-items?id=' + encodeURIComponent(b.dataset.id), { method: 'DELETE' });
+          delData = await delRes.json().catch(function () { return {}; });
+        } catch (err) {
+          alert('Could not delete: ' + err.message);
+          return;
+        }
+        if (!delRes.ok) { alert(delData.error || 'Could not delete this item.'); return; }
         if (editingId && String(editingId) === b.dataset.id) resetForm();
         runSearch();
       });

@@ -318,7 +318,22 @@ async function handleInvItems(request, env, url) {
   if (request.method === "DELETE") {
     const id = url.searchParams.get("id");
     if (!id) return json({ error: "id required" }, 400);
-    await env.DB.prepare(`DELETE FROM inventory WHERE id = ?`).bind(id).run();
+    // Foreign keys (expenditure.linked_inventory_id, ring_sizes.inventory_id,
+    // sales.item_sku) made a bare DELETE fail for any item with stock history.
+    // Everything pointing at this item is detached/removed in ONE atomic batch
+    // (all or nothing). The stock expense stays in the ledger (unlinked) so the
+    // accounts keep the real cost; order_items are snapshots and are untouched.
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE expenditure SET linked_inventory_id = NULL WHERE linked_inventory_id = ?1`).bind(id),
+        env.DB.prepare(`DELETE FROM ring_sizes WHERE inventory_id = ?1`).bind(id),
+        env.DB.prepare(`DELETE FROM stream_plan_items WHERE inventory_id = ?1`).bind(id),
+        env.DB.prepare(`UPDATE sales SET item_sku = NULL WHERE item_sku = (SELECT sku FROM inventory WHERE id = ?1)`).bind(id),
+        env.DB.prepare(`DELETE FROM inventory WHERE id = ?1`).bind(id),
+      ]);
+    } catch (e) {
+      return json({ error: "Could not delete this item: " + e.message }, 500);
+    }
     return json({ success: true });
   }
   return json({ error: "Method not allowed" }, 405);
